@@ -118,6 +118,7 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
     started_at: new Date().toISOString(),
     capabilities: ["get_docs"],
   };
+  let httpServer: ReturnType<typeof createServer> | undefined;
   try {
     assert.equal(
       (await callPhoenix(project, "phoenix_health")).error?.code,
@@ -239,9 +240,31 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
       "refused connections were never dispatched",
     );
     assert.equal(downMutation.error?.dispatch_occurred, false);
+
+    // The stale descriptor stays (halt skips cleanup), but a configured
+    // phoenix.json is still reached over HTTP when the socket was never used.
+    const httpFixture = fixture(project, projectId);
+    httpServer = createServer(httpFixture.handler);
+    await new Promise<void>((resolve) =>
+      httpServer?.listen(0, "127.0.0.1", resolve),
+    );
+    const port = (httpServer.address() as { port: number }).port;
+    await setupPhoenix(await register(project, `http://127.0.0.1:${port}`));
+    const connection = await readJson<PhoenixConnection>(
+      path.join(projectDirectory(project), "phoenix.json"),
+    );
+    const secret = (await readFile(connection.token_file, "utf8")).trim();
+    assert.equal((await resolveRuntime(project)).kind, "socket");
+    const fallback = await callPhoenix(project, "phoenix_health");
+    assert.equal(fallback.runtime_id, "instance-1");
+    assert.equal(httpFixture.authorization, `Bearer ${secret}`);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    httpServer?.closeAllConnections();
+    await new Promise<void>((resolve) =>
+      httpServer ? httpServer.close(() => resolve()) : resolve(),
+    );
     restore();
     await rm(root, { recursive: true, force: true });
   }

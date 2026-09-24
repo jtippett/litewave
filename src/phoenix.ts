@@ -199,6 +199,32 @@ async function assertPrivateSocket(socket: string) {
   if (file && (!file.isSocket() || file.uid !== uid)) throw denied();
 }
 
+async function resolveHttpTarget(
+  canonical: string,
+  projectId: string,
+): Promise<RuntimeTarget> {
+  const config = await readJson<PhoenixConnection>(
+    path.join(projectDirectory(canonical), "phoenix.json"),
+  );
+  if (
+    config.version !== 1 ||
+    config.project_id !== projectId ||
+    typeof config.token_file !== "string" ||
+    !path.isAbsolute(config.token_file)
+  )
+    throw new AccessError(
+      "permission_denied",
+      "Phoenix connection identity is invalid.",
+    );
+  return {
+    kind: "http",
+    project: canonical,
+    projectId,
+    endpoint: endpoint(config.endpoint),
+    tokenFile: config.token_file,
+  };
+}
+
 export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
   const canonical = await realpath(project);
   const projectId = projectKey(canonical);
@@ -235,27 +261,8 @@ export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
       socketPath: d.socket,
     };
   }
-  const file = path.join(directory, "phoenix.json");
-  if (await exists(file)) {
-    const config = await readJson<PhoenixConnection>(file);
-    if (
-      config.version !== 1 ||
-      config.project_id !== projectId ||
-      typeof config.token_file !== "string" ||
-      !path.isAbsolute(config.token_file)
-    )
-      throw new AccessError(
-        "permission_denied",
-        "Phoenix connection identity is invalid.",
-      );
-    return {
-      kind: "http",
-      project: canonical,
-      projectId,
-      endpoint: endpoint(config.endpoint),
-      tokenFile: config.token_file,
-    };
-  }
+  if (await exists(path.join(directory, "phoenix.json")))
+    return resolveHttpTarget(canonical, projectId);
   throw new AccessError(
     "phoenix_not_configured",
     "No Litewave runtime is published for this project. Add the litewave_phoenix dependency to the app and restart it, or run litewave phoenix setup --project PATH for the HTTP transport.",
@@ -328,22 +335,43 @@ export async function callPhoenix(
         "request_too_large",
         "Runtime requests must fit within 64 KiB.",
       );
-    const headers: Record<string, string> = body
-      ? { "content-type": "application/json" }
-      : {};
-    if (target.kind === "http")
-      headers.authorization = `Bearer ${await token(target.tokenFile)}`;
-    const response = await requestJson(
-      target.kind === "socket"
-        ? { socketPath: target.socketPath, path: "/litewave/runtime" }
-        : { url: target.endpoint },
-      {
-        method: body ? "POST" : "GET",
-        body,
-        headers,
-        timeoutMs: method === "phoenix_health" ? 2000 : 35_000,
-      },
-    );
+    const send = async (t: RuntimeTarget) => {
+      const headers: Record<string, string> = body
+        ? { "content-type": "application/json" }
+        : {};
+      if (t.kind === "http")
+        headers.authorization = `Bearer ${await token(t.tokenFile)}`;
+      return requestJson(
+        t.kind === "socket"
+          ? { socketPath: t.socketPath, path: "/litewave/runtime" }
+          : { url: t.endpoint },
+        {
+          method: body ? "POST" : "GET",
+          body,
+          headers,
+          timeoutMs: method === "phoenix_health" ? 2000 : 35_000,
+        },
+      );
+    };
+    let response: Awaited<ReturnType<typeof send>>;
+    try {
+      response = await send(target);
+    } catch (error) {
+      // runtime.json outlives an app stopped by Ctrl-C or mix run (halt skips
+      // cleanup), so a dead socket must not hide a configured HTTP transport.
+      // Retrying is safe only because nothing reached the runtime.
+      if (
+        target.kind === "socket" &&
+        error instanceof TransportError &&
+        !error.sent &&
+        (await exists(
+          path.join(projectDirectory(target.project), "phoenix.json"),
+        ))
+      ) {
+        target = await resolveHttpTarget(target.project, target.projectId);
+        response = await send(target);
+      } else throw error;
+    }
     if (response.status >= 300 && response.status < 400)
       return runtimeFailure(
         "permission_denied",
