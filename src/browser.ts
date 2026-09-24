@@ -87,7 +87,7 @@ export class BrowserWorker {
         );
       throw new AccessError(
         "browser_closed",
-        "Chromium could not start. Run npm run browser:install and inspect the local environment.",
+        "Chromium could not start. Run litewave browser install and inspect the local environment.",
         "doctor",
       );
     }
@@ -103,7 +103,7 @@ export class BrowserWorker {
       if (this.context.browser()?.version() !== QUALIFIED_BROWSER_VERSION)
         throw new AccessError(
           "browser_version_mismatch",
-          "The installed browser differs from Litewave's qualified version. Run npm ci and npm run browser:install.",
+          "The installed browser differs from Litewave's qualified version. Run npm ci and litewave browser install.",
           "doctor",
         );
       if (options.storageState)

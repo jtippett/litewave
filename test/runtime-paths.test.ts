@@ -44,6 +44,8 @@ test("LITEWAVE_HOME expands a leading ~ and resolves relative paths like Elixir'
     assert.equal(home(), path.resolve("relative-home"));
     process.env.LITEWAVE_HOME = "~";
     assert.equal(home(), homedir());
+    process.env.LITEWAVE_HOME = "";
+    assert.equal(home(), path.resolve(""));
   } finally {
     if (previous === undefined) delete process.env.LITEWAVE_HOME;
     else process.env.LITEWAVE_HOME = previous;

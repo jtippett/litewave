@@ -19,7 +19,7 @@ export const hash = (value: string | Buffer) =>
 // directory and a relative path resolves against the working directory.
 export const home = () => {
   const configured = process.env.LITEWAVE_HOME;
-  if (!configured) return path.join(homedir(), ".litewave");
+  if (configured === undefined) return path.join(homedir(), ".litewave");
   const expanded =
     configured === "~" || configured.startsWith("~/")
       ? path.join(homedir(), configured.slice(1))
