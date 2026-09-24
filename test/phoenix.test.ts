@@ -128,8 +128,23 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
     assert.equal(target.kind, "socket");
     const health = await callPhoenix(project, "phoenix_health");
     assert.equal(health.runtime_id, "instance-1");
+    let before: number;
     assert.equal(health.app_url, "http://localhost:4123");
     assert.equal(f.authorization, "", "no token on the socket transport");
+
+    // A run directory other users can enter is refused before connecting.
+    await chmod(path.dirname(socketPath), 0o755);
+    before = f.calls;
+    assert.equal(
+      (await callPhoenix(project, "phoenix_health")).error?.code,
+      "permission_denied",
+    );
+    assert.equal(f.calls, before);
+    await chmod(path.dirname(socketPath), 0o700);
+    assert.equal(
+      (await callPhoenix(project, "phoenix_health")).runtime_id,
+      "instance-1",
+    );
 
     f.mode = "wrong-project";
     assert.equal(
@@ -137,7 +152,7 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
       "project_mismatch",
     );
     f.mode = "redirect";
-    let before = f.calls;
+    before = f.calls;
     assert.equal(
       (await callPhoenix(project, "phoenix_health")).error?.code,
       "permission_denied",

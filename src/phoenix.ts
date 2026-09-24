@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
+import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -172,6 +172,33 @@ export async function setupPhoenix(r: Registration) {
   };
 }
 
+// Another user who controls the run directory or the socket could receive
+// eval code and SQL. A missing path is left to the connection attempt, which
+// fails before anything is sent (the app is down or has not published yet).
+async function assertPrivateSocket(socket: string) {
+  const denied = () =>
+    new AccessError(
+      "permission_denied",
+      "Runtime socket directory or socket is not private to this user.",
+    );
+  const info = async (file: string) =>
+    lstat(file).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw denied();
+    });
+  const uid = process.getuid?.();
+  const directory = await info(path.dirname(socket));
+  if (!directory) return;
+  if (
+    !directory.isDirectory() ||
+    directory.uid !== uid ||
+    (directory.mode & 0o777) !== 0o700
+  )
+    throw denied();
+  const file = await info(socket);
+  if (file && (!file.isSocket() || file.uid !== uid)) throw denied();
+}
+
 export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
   const canonical = await realpath(project);
   const projectId = projectKey(canonical);
@@ -200,6 +227,7 @@ export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
         "permission_denied",
         "Runtime descriptor identity is invalid.",
       );
+    await assertPrivateSocket(d.socket);
     return {
       kind: "socket",
       project: canonical,
