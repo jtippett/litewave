@@ -98,6 +98,27 @@ defmodule Litewave.ListenerTest do
     assert (File.stat!(run).mode &&& 0o777) == 0o700
   end
 
+  test "tightens a loose home and projects directory before listening", ctx do
+    File.chmod!(ctx.home, 0o755)
+    pid = start(ctx)
+    assert %{status: :listening} = Listener.info(pid)
+    assert (File.stat!(ctx.home).mode &&& 0o777) == 0o700
+    assert (File.stat!(Path.join(ctx.home, "projects")).mode &&& 0o777) == 0o700
+  end
+
+  test "names the directory it cannot secure", ctx do
+    File.write!(Path.join(ctx.home, "projects"), "not a directory")
+
+    log =
+      capture_log(fn ->
+        pid = start(ctx)
+        assert %{status: :disabled, reason: reason} = Listener.info(pid)
+        assert reason =~ Path.join(ctx.home, "projects")
+      end)
+
+    assert log =~ "Litewave runtime socket is unavailable"
+  end
+
   test "stops the bound server and removes the socket if starting fails after binding", ctx do
     File.mkdir_p!(ctx.paths.descriptor)
 

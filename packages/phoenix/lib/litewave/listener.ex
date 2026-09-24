@@ -64,8 +64,10 @@ defmodule Litewave.Listener do
 
   defp start(config, paths) do
     with :ok <- Paths.check_length(paths.socket),
-         :ok <- Paths.private_dir(Path.dirname(paths.socket)),
-         :ok <- Paths.private_dir(Path.dirname(paths.descriptor)),
+         :ok <- private_dir(paths.home),
+         :ok <- private_dir(Path.join(paths.home, "projects")),
+         :ok <- private_dir(Path.dirname(paths.socket)),
+         :ok <- private_dir(Path.dirname(paths.descriptor)),
          :ok <- clear_stale(paths.socket),
          {:ok, server} <-
            Bandit.start_link(
@@ -75,6 +77,21 @@ defmodule Litewave.Listener do
              startup_log: false
            ) do
       finish_start(server, paths, config)
+    end
+  end
+
+  # Every directory from the home down is created 0700 and must be owned by
+  # this user; another user's directory would let them plant a socket.
+  defp private_dir(dir) do
+    case Paths.private_dir(dir) do
+      :ok ->
+        :ok
+
+      {:error, :not_owned} ->
+        {:error, "#{dir} is not owned by the current user"}
+
+      {:error, reason} ->
+        {:error, "cannot secure directory #{dir}: #{inspect(reason)}"}
     end
   end
 
