@@ -17,7 +17,6 @@ defmodule Litewave.HTTPTest do
     config =
       Litewave.init(
         project: File.cwd!(),
-        project_id: "http-fixture",
         endpoint: origin,
         token_file: token_file,
         allow_eval: true
@@ -31,8 +30,10 @@ defmodule Litewave.HTTPTest do
   test "real HTTP authenticates health and rejects Origin attacks", ctx do
     url = ctx.origin <> "/litewave/runtime"
 
-    assert {:ok, %{status: 200, body: %{"project_id" => "http-fixture"}}} =
+    assert {:ok, %{status: 200, body: %{"project_id" => project_id}}} =
              Req.get(url, auth: {:bearer, ctx.token}, retry: false)
+
+    assert project_id == Litewave.Paths.key(ctx.config.project)
 
     assert {:ok, %{status: 403}} =
              Req.get(url,
@@ -50,10 +51,19 @@ defmodule Litewave.HTTPTest do
     assert File.regular?(Path.expand("../../dist/src/phoenix.js")),
            "Run npm run build in the repository root before the bridge integration test."
 
+    home = Path.join(ctx.directory, "home")
+    fixture_directory = Path.join([home, "projects", Litewave.Paths.key(ctx.config.project)])
+    File.mkdir_p!(fixture_directory)
+    File.chmod!(home, 0o700)
+    File.chmod!(Path.join(home, "projects"), 0o700)
+    File.chmod!(fixture_directory, 0o700)
+
     {output, exit_code} =
       System.cmd(node, [script],
         env: [
-          {"LITEWAVE_FIXTURE_DIRECTORY", ctx.directory},
+          {"LITEWAVE_HOME", home},
+          {"LITEWAVE_FIXTURE_TRANSPORT", "http"},
+          {"LITEWAVE_FIXTURE_DIRECTORY", fixture_directory},
           {"LITEWAVE_FIXTURE_TOKEN_FILE", ctx.token_file},
           {"LITEWAVE_FIXTURE_PROJECT", ctx.config.project},
           {"LITEWAVE_FIXTURE_ORIGIN", ctx.origin}
@@ -62,7 +72,7 @@ defmodule Litewave.HTTPTest do
       )
 
     assert exit_code == 0, output
-    assert output =~ "Phoenix MCP bridge passed"
+    assert output =~ "Phoenix MCP bridge passed over http"
   end
 
   test "a restarted adapter rejects old execution identities", ctx do

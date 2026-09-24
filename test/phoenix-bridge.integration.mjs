@@ -3,33 +3,52 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { callPhoenix } from "../dist/src/phoenix.js";
-import { atomicJson } from "../dist/src/storage.js";
+import { callPhoenix, resolveRuntime } from "../dist/src/phoenix.js";
+import { atomicJson, projectKey } from "../dist/src/storage.js";
 import { mcp } from "../dist/src/mcp.js";
 
-const directory = process.env.LITEWAVE_FIXTURE_DIRECTORY;
-const r = {
-  version: 1,
-  id: "http-fixture",
-  project: process.env.LITEWAVE_FIXTURE_PROJECT,
-  app: process.env.LITEWAVE_FIXTURE_ORIGIN,
-  directory,
-  token: "unused-browser-token",
-  socket: path.join(directory, "absent-browser.sock"),
-  origins: [],
-  uploadRoots: [],
-};
+const transportKind = process.env.LITEWAVE_FIXTURE_TRANSPORT ?? "http";
+const project = process.env.LITEWAVE_FIXTURE_PROJECT;
+const registration =
+  transportKind === "http"
+    ? {
+        version: 1,
+        id: "http-fixture",
+        project,
+        app: process.env.LITEWAVE_FIXTURE_ORIGIN,
+        directory: process.env.LITEWAVE_FIXTURE_DIRECTORY,
+        token: "unused-browser-token",
+        socket: path.join(
+          process.env.LITEWAVE_FIXTURE_DIRECTORY,
+          "absent-browser.sock",
+        ),
+        origins: [],
+        uploadRoots: [],
+      }
+    : null;
+
 if (process.argv.includes("--mcp-server")) {
-  await mcp(r);
+  await mcp({ project, registration });
 } else {
-  await atomicJson(path.join(directory, "phoenix.json"), {
-    version: 1,
-    endpoint: r.app + "/litewave/runtime",
-    token_file: process.env.LITEWAVE_FIXTURE_TOKEN_FILE,
-    project_id: r.id,
-  });
-  const health = await callPhoenix(r, "phoenix_health");
-  assert.equal(health.project_id, r.id, JSON.stringify(health));
+  if (transportKind === "http") {
+    await atomicJson(path.join(registration.directory, "phoenix.json"), {
+      version: 1,
+      endpoint: registration.app + "/litewave/runtime",
+      token_file: process.env.LITEWAVE_FIXTURE_TOKEN_FILE,
+      project_id: projectKey(project),
+    });
+  }
+  const target = await resolveRuntime(project);
+  assert.equal(target.kind, transportKind);
+  const health = await callPhoenix(project, "phoenix_health");
+  assert.equal(health.project_id, projectKey(project), JSON.stringify(health));
+  // Litewave.Config reports the explicit HTTP Plug transport as "endpoint" on
+  // the wire; Node's fixture-only transportKind label for that case is "http".
+  assert.equal(
+    health.transport,
+    transportKind === "http" ? "endpoint" : transportKind,
+    JSON.stringify(health),
+  );
   assert.equal(health.sql_mode, "disabled");
   assert.ok(health.capabilities.includes("project_eval"));
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -55,7 +74,10 @@ if (process.argv.includes("--mcp-server")) {
         "phoenix_health",
         "runtime_action_status",
       ])
-        assert.ok(listed.tools.some((t) => t.name === name));
+        assert.ok(
+          listed.tools.some((t) => t.name === name),
+          name,
+        );
       const liveHealth = await client.callTool({
         name: "phoenix_health",
         arguments: {},
@@ -67,7 +89,7 @@ if (process.argv.includes("--mcp-server")) {
           code: 'IO.puts("bridge output"); Enum.sum(arguments)',
           arguments: [10, 20],
           runtime_id: health.runtime_id,
-          request_id: "bridge-eval",
+          request_id: `bridge-eval-${transportKind}`,
         },
       });
       assert.equal(
@@ -100,6 +122,8 @@ if (process.argv.includes("--mcp-server")) {
         arguments: { method: "status", requestId: "browser-down" },
       });
       assert.equal(browser.isError, true);
+      if (transportKind === "socket")
+        assert.equal(browser.structuredContent.error.code, "not_registered");
       assert.equal(
         (await client.callTool({ name: "phoenix_health", arguments: {} }))
           .isError,
@@ -109,5 +133,5 @@ if (process.argv.includes("--mcp-server")) {
       await client.close();
     }
   }
-  console.log("Phoenix MCP bridge passed");
+  console.log(`Phoenix MCP bridge passed over ${transportKind}`);
 }
