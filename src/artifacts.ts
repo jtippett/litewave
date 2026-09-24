@@ -81,7 +81,7 @@ export async function loadArtifacts(directory: string): Promise<Artifact[]> {
     }
     artifacts.set(artifact.id, artifact);
   }
-  return [...artifacts.values()].sort((a, b) =>
+  return [...artifacts.values()].toSorted((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
   );
 }

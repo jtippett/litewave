@@ -30,7 +30,8 @@
     "build": "tsc",
     "test": "npm run build && node --test dist/test/*.test.js",
     "test:browser": "npm run build && node --test dist/test/browser*.integration.js",
-    "check": "npm run format:check && npm test",
+    "check": "npm run format:check && npm run lint && npm test",
+    "lint": "oxlint src test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "browser:install": "playwright install chromium",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "oxlint": "1.85.0",
     "prettier": "3.8.1",
     "typescript": "7.0.2"
   }

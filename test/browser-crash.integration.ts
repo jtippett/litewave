@@ -62,7 +62,7 @@ test(
         method: "click",
         target: { kind: "role", role: "link", name: "Empty" },
       });
-      await Promise.all([...worker.pendingDownloads]);
+      await Promise.all(worker.pendingDownloads);
       const completed = [...worker.downloads.values()][0]!;
       assert.equal(completed.status, "complete");
       assert.equal(completed.size, 0);
@@ -82,7 +82,7 @@ test(
       });
       void cdp.send("Browser.crash").catch(() => undefined);
       await browserClosed;
-      await Promise.all([...worker.pendingDownloads]);
+      await Promise.all(worker.pendingDownloads);
       assert.equal(worker.state, "closed");
       const failed = [...worker.downloads.values()][1]!;
       assert.equal(failed.status, "failed");
@@ -109,7 +109,7 @@ test(
         tabId: newTabId,
         target: { kind: "role", role: "link", name: "Empty" },
       });
-      await Promise.all([...replacement.pendingDownloads]);
+      await Promise.all(replacement.pendingDownloads);
       await delay(1500);
       assert.equal(replacement.state, "ready");
       assert.equal(

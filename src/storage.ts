@@ -5,7 +5,6 @@ import {
   lstat,
   mkdir,
   open,
-  readFile,
   realpath,
   rename,
   stat,

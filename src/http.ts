@@ -34,7 +34,7 @@ export function requestJson(
       reject(new TransportError(code, message, sent));
     };
     const headers = {
-      ...(init.headers ?? {}),
+      ...init.headers,
       ...(init.body
         ? { "content-length": String(Buffer.byteLength(init.body)) }
         : {}),

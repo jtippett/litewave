@@ -220,6 +220,7 @@ test(
         );
         socket.on("error", reject);
       });
+      // oxlint-disable-next-line no-unmodified-loop-condition -- incremented by the fixture server's request handler
       for (let i = 0; i < 100 && submissions === 0; i++) await delay(20);
       assert.equal(submissions, 1);
       for (let i = 0; i < 100; i++) {

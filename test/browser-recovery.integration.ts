@@ -185,6 +185,7 @@ test(
           };
           const inFlight = call(interrupted);
           const deadline = Date.now() + 5000;
+          // oxlint-disable-next-line no-unmodified-loop-condition -- incremented by the fixture server's request handler
           while (submissions === 0 && Date.now() < deadline) await delay(10);
           assert.equal(submissions, 1);
           // Close our own browser while the observation is pending, independently of stop.

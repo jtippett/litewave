@@ -131,6 +131,7 @@ function endpoint(value: string) {
   }
   return url;
 }
+const literal = (text: string) => JSON.stringify(text).replaceAll("#{", "\\#{");
 export async function setupPhoenix(r: Registration) {
   const file = path.join(r.directory, "phoenix.json");
   const runtimeEndpoint = endpoint(new URL("/litewave/runtime", r.app).href);
@@ -162,8 +163,6 @@ export async function setupPhoenix(r: Registration) {
     }
   }
   const connection = await readJson<PhoenixConnection>(file);
-  const literal = (text: string) =>
-    JSON.stringify(text).replaceAll("#{", "\\#{");
   return {
     endpoint: connection.endpoint,
     project_id: projectId,
@@ -175,12 +174,12 @@ export async function setupPhoenix(r: Registration) {
 // Another user who controls the run directory or the socket could receive
 // eval code and SQL. A missing path is left to the connection attempt, which
 // fails before anything is sent (the app is down or has not published yet).
+const denied = () =>
+  new AccessError(
+    "permission_denied",
+    "Runtime socket directory or socket is not private to this user.",
+  );
 async function assertPrivateSocket(socket: string) {
-  const denied = () =>
-    new AccessError(
-      "permission_denied",
-      "Runtime socket directory or socket is not private to this user.",
-    );
   const info = async (file: string) =>
     lstat(file).catch((error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") return undefined;

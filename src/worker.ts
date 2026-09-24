@@ -9,7 +9,7 @@ const worker = new BrowserWorker(r);
 let ready = false;
 let startupError: unknown;
 // Bind before launching: the socket arbitrates concurrent open calls without deleting a lock.
-const server = await serve(r, (op) =>
+await serve(r, (op) =>
   ready || (startupError !== undefined && op.method === "stop")
     ? worker.execute(op)
     : Promise.resolve(
