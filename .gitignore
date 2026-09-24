@@ -11,3 +11,6 @@ dist/
 
 # Private customer feedback and raw investigation evidence
 /local-feedback/
+
+# Superpowers plan workspaces (scratch)
+/.superpowers/
