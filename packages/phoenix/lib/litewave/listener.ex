@@ -72,8 +72,8 @@ defmodule Litewave.Listener do
          :ok <- private_dir(Path.join(paths.home, "projects")),
          :ok <- private_dir(Path.dirname(paths.socket)),
          :ok <- private_dir(Path.dirname(paths.descriptor)),
-         :ok <- sweep_partials(paths.descriptor),
          :ok <- clear_stale(paths.socket),
+         :ok <- sweep_partials(paths.descriptor),
          {:ok, server} <-
            Bandit.start_link(
              plug: {Litewave.SocketPlug, config},
@@ -123,6 +123,13 @@ defmodule Litewave.Listener do
     do: Exception.message(Exception.normalize(:error, reason, stacktrace))
 
   defp describe(_kind, reason, _stacktrace), do: inspect(reason)
+
+  # Exception.format_exit/1 can render a multi-line message, stack trace
+  # included, for {exception, stacktrace} exits. One warning line only, same
+  # rule as describe/3 above.
+  defp format_exit_reason(reason) do
+    reason |> Exception.format_exit() |> String.split("\n", parts: 2) |> hd()
+  end
 
   # The server may already be gone; the socket file must go regardless.
   defp abort_start(server, socket) do
@@ -201,7 +208,7 @@ defmodule Litewave.Listener do
   @impl true
   def handle_info({:EXIT, pid, reason}, %{server: pid} = state) do
     cleanup(state)
-    {:noreply, disabled(state, "listener exited: #{Exception.format_exit(reason)}")}
+    {:noreply, disabled(state, "listener exited: #{format_exit_reason(reason)}")}
   end
 
   def handle_info(_message, state), do: {:noreply, state}

@@ -173,11 +173,16 @@ defmodule Litewave.ListenerTest do
   test "reports disabled and removes its files when the bound server exits", ctx do
     listener = start(ctx)
     %{server: server} = :sys.get_state(listener)
+    # The acceptor pool supervisor logs its own crash report as it dies; wait
+    # for every process in the tree to be gone so no such line can land after
+    # capture_log's window has closed.
+    refs = server |> collect_pids() |> Enum.map(&Process.monitor/1)
 
     log =
       capture_log(fn ->
         Process.exit(server, :kill)
         eventually(fn -> Listener.info(listener).status == :disabled end)
+        for ref <- refs, do: assert_receive({:DOWN, ^ref, _, _, _}, 1_000)
       end)
 
     assert %{status: :disabled, reason: "listener exited: killed"} = Listener.info(listener)
@@ -197,6 +202,21 @@ defmodule Litewave.ListenerTest do
     assert info.reason =~ "another runtime already serves"
     assert info.socket == ctx.paths.socket
     assert info.descriptor == ctx.paths.descriptor
+  end
+
+  # The whole live tree under `pid`, `pid` included, so every one of its
+  # processes can be monitored and waited for on teardown.
+  defp collect_pids(pid) do
+    children =
+      pid
+      |> Supervisor.which_children()
+      |> Enum.flat_map(fn
+        {_id, child, :supervisor, _modules} when is_pid(child) -> collect_pids(child)
+        {_id, child, _type, _modules} when is_pid(child) -> [child]
+        _ -> []
+      end)
+
+    [pid | children]
   end
 
   defp eventually(fun, attempts \\ 100) do
