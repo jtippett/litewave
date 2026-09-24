@@ -11,14 +11,22 @@ defmodule Litewave.Config do
        else: :prod
   end
 
+  @env_options ~w(allow_eval allow_sql repos roots timeout max_output_bytes max_rows project environment)a
+  # The Plug takes its project from its own arguments or the registration, and
+  # its environment from its own arguments or the host, never from application
+  # environment.
+  @env_options_without_project @env_options -- [:project, :environment]
+
+  # Plug arguments override application environment.
   def new(opts) when is_list(opts) do
-    case Keyword.pop(opts, :registration) do
+    from_env =
+      :litewave_phoenix |> Application.get_all_env() |> Keyword.take(@env_options_without_project)
+
+    case Keyword.pop(Keyword.merge(from_env, opts), :registration) do
       {nil, opts} -> explicit(opts)
       {project, opts} -> from_registration(project, opts)
     end
   end
-
-  @env_options ~w(allow_eval allow_sql repos roots timeout max_output_bytes max_rows project environment)a
 
   def socket(opts \\ []) when is_list(opts) do
     from_env = :litewave_phoenix |> Application.get_all_env() |> Keyword.take(@env_options)

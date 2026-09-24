@@ -67,6 +67,22 @@ defmodule Litewave.RuntimeTest do
     assert Litewave.Config.socket(environment: :test, allow_eval: false).allow_eval == false
   end
 
+  test "the Plug reads application environment and its own arguments win", ctx do
+    Application.put_env(:litewave_phoenix, :allow_sql, true)
+    Application.put_env(:litewave_phoenix, :max_rows, 7)
+
+    on_exit(fn ->
+      Application.delete_env(:litewave_phoenix, :allow_sql)
+      Application.delete_env(:litewave_phoenix, :max_rows)
+    end)
+
+    opts = Keyword.drop(ctx.opts, [:allow_sql, :max_rows])
+    config = Litewave.init(opts)
+    assert config.allow_sql == true
+    assert config.max_rows == 7
+    assert Litewave.init(Keyword.put(opts, :max_rows, 9)).max_rows == 9
+  end
+
   test "health reports app_url only while a Phoenix endpoint process is running", ctx do
     assert Litewave.AppURL.detect() == nil
     assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == nil
