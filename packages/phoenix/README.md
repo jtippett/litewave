@@ -4,52 +4,43 @@ Development-only runtime tools for Litewave. The adapter provides the five core 
 
 The CLI and MCP bridge connect directly to the adapter. Browser startup and browser authentication are independent of runtime access.
 
-## Install from the Litewave checkout
+## Install
 
-First register your app and generate its private runtime connection from the repository root:
+Add the development-only dependency and restart your app:
+
+```elixir
+{:litewave_phoenix, "~> 0.1", only: :dev}
+```
+
+That is the whole install. At boot in `:dev`, the package publishes its runtime
+tools on a private Unix socket under `~/.litewave` (or `LITEWAVE_HOME`). No
+port, token, or endpoint change is needed. Docs, source locations, logs, and
+health are enabled by default. To enable evaluation and writable SQL:
+
+```elixir
+# config/dev.exs
+config :litewave_phoenix,
+  allow_eval: true,
+  allow_sql: true,
+  repos: [MyApp.Repo]
+```
+
+Then, from any directory, connect the Litewave CLI or MCP bridge to the project:
 
 ```sh
-npm ci
-npm run build
-node dist/src/cli.js init --project /absolute/path/to/app --app http://localhost:4000
-node dist/src/cli.js phoenix setup --project /absolute/path/to/app
+litewave phoenix status --project /absolute/path/to/app
+litewave mcp --project /absolute/path/to/app
 ```
 
-If the app is already registered, skip `init`. Setup is idempotent and does not replace an existing token or configuration. Tokens stay in the private registration directory under `~/.litewave`; setup prints their file path, never their contents. If using `LITEWAVE_HOME`, use the same setting for the app and all Litewave clients.
+Set `enabled: false` in the same config to turn the socket off.
 
-Add the local Mix dependency to your app:
+### Alternative: HTTP on the app port
 
-```elixir
-{:litewave_phoenix, path: "/absolute/path/to/litewave/packages/phoenix", only: :dev}
-```
-
-Mount the Plug in your Phoenix endpoint **before `Phoenix.CodeReloader` and `Plug.Parsers`**. For the usual `lib/my_app_web/endpoint.ex` location:
-
-```elixir
-if Mix.env() == :dev do
-  plug Litewave,
-    registration: Path.expand("../..", __DIR__)
-end
-```
-
-That enables docs, source locations, logs, and health. To explicitly enable IEx-like evaluation and Tidewave-style writable SQL, add:
-
-```elixir
-allow_eval: true,
-allow_sql: true,
-repos: [MyApp.Repo]
-```
-
-SQL is **read-write** when enabled. Runtime evaluation can also mutate application state or execute SQL. These capabilities are for trusted local development, and are not sandboxes. A dedicated read-only database connection is a separate future feature.
-
-Run `mix deps.get`, then have the application owner restart the app once to load the new dependency. Litewave never starts or restarts the application server. There is no toolbar or browser control page to keep open.
-
-```sh
-node dist/src/cli.js phoenix status --project /absolute/path/to/app
-node dist/src/cli.js phoenix call --project /absolute/path/to/app --tool get_docs --json '{"reference":"MyApp.Accounts"}'
-```
-
-The existing `litewave mcp --project ...` entry advertises the runtime tools once Phoenix setup has been run. Reconnect the agent's MCP client after initial setup. It can connect even while the app or browser is down; tools report their own availability.
+If you prefer the runtime on your app's HTTP port, run
+`litewave phoenix setup --project PATH` and mount the printed `plug Litewave`
+line in your endpoint before `Plug.Parsers`. This transport checks loopback
+peer, Host, Origin, and a private token. The socket transport does not need
+these because a filesystem socket is unreachable from a web page.
 
 ## Tool behavior
 
