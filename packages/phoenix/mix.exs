@@ -29,7 +29,7 @@ defmodule Litewave.MixProject do
       {:jason, "~> 1.4"},
       {:ecto_sql, "~> 3.13", optional: true},
       {:postgrex, "~> 0.21", only: :test},
-      {:bandit, "~> 1.10", only: :test},
+      {:bandit, "~> 1.10"},
       {:req, "~> 0.7", only: :test}
     ]
   end
