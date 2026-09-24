@@ -71,6 +71,10 @@ defmodule Litewave.RuntimeTest do
     assert Litewave.AppURL.detect() == nil
     assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == nil
 
+    {:ok, thrower} = Agent.start_link(fn -> nil end, name: Litewave.TestThrowingEndpoint)
+    assert Litewave.AppURL.detect() == nil
+    Agent.stop(thrower)
+
     {:ok, agent} = Agent.start_link(fn -> nil end, name: Litewave.TestPhoenixEndpoint)
     assert Litewave.AppURL.detect() == "http://localhost:4123"
     assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == "http://localhost:4123"

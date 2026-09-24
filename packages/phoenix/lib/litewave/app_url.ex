@@ -21,7 +21,7 @@ defmodule Litewave.AppURL do
       rescue
         _ -> nil
       catch
-        :exit, _ -> nil
+        _kind, _reason -> nil
       end
     end
   end
