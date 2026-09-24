@@ -4,8 +4,12 @@ defmodule Litewave.Paths do
 
   @too_long "LITEWAVE_HOME is too long for a Unix socket. Choose a shorter path."
 
+  # Normalised the same way as the Node side's path.resolve, so both derive
+  # byte-identical socket and descriptor paths.
   def home(override \\ nil) do
-    override || System.get_env("LITEWAVE_HOME") || Path.join(System.user_home!(), ".litewave")
+    Path.expand(
+      override || System.get_env("LITEWAVE_HOME") || Path.join(System.user_home!(), ".litewave")
+    )
   end
 
   def key(project) when is_binary(project) do

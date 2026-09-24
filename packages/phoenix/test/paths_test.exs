@@ -28,6 +28,13 @@ defmodule Litewave.PathsTest do
     assert Paths.home(nil) == Path.join(System.user_home!(), ".litewave")
   end
 
+  test "home is normalised like the Node side's path.resolve" do
+    System.put_env("LITEWAVE_HOME", "/tmp/./lw-x//")
+    on_exit(fn -> System.delete_env("LITEWAVE_HOME") end)
+    assert Paths.home(nil) == "/tmp/lw-x"
+    assert Paths.home("relative/dir") == Path.expand("relative/dir")
+  end
+
   test "socket paths longer than 100 bytes are refused with the documented message" do
     long = String.duplicate("a", 101)
 
