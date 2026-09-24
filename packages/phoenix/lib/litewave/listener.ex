@@ -40,10 +40,7 @@ defmodule Litewave.Listener do
           disabled(%{socket: nil, descriptor: nil}, Exception.message(error))
       catch
         kind, reason ->
-          disabled(
-            %{socket: nil, descriptor: nil},
-            Exception.format(kind, reason, __STACKTRACE__)
-          )
+          disabled(%{socket: nil, descriptor: nil}, describe(kind, reason, __STACKTRACE__))
       end
 
     {:ok, state}
@@ -110,11 +107,23 @@ defmodule Litewave.Listener do
   catch
     kind, reason ->
       abort_start(server, paths.socket)
-      {:error, "listener failed to start: #{Exception.format(kind, reason, __STACKTRACE__)}"}
+      {:error, "listener failed to start: #{describe(kind, reason, __STACKTRACE__)}"}
   end
 
+  # One warning line: the message only, never a stack trace.
+  defp describe(:error, reason, stacktrace),
+    do: Exception.message(Exception.normalize(:error, reason, stacktrace))
+
+  defp describe(_kind, reason, _stacktrace), do: inspect(reason)
+
+  # The server may already be gone; the socket file must go regardless.
   defp abort_start(server, socket) do
-    Supervisor.stop(server)
+    try do
+      Supervisor.stop(server)
+    catch
+      :exit, _ -> :ok
+    end
+
     File.rm(socket)
     :ok
   end
