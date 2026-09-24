@@ -19,13 +19,6 @@ defmodule Litewave.Config do
   end
 
   defp explicit(opts) do
-    environment = Keyword.get(opts, :environment, environment())
-
-    unless environment() in [:dev, :test] and environment in [:dev, :test] do
-      raise ArgumentError, "Litewave runtime access is development-only"
-    end
-
-    project = opts |> Keyword.fetch!(:project) |> Path.expand()
     endpoint = opts |> Keyword.fetch!(:endpoint) |> URI.parse()
 
     unless endpoint.scheme in ["http", "https"] and
@@ -35,11 +28,28 @@ defmodule Litewave.Config do
       raise ArgumentError, "Litewave endpoint must be an explicit loopback HTTP(S) origin"
     end
 
+    opts
+    |> base()
+    |> Map.merge(%{
+      transport: :endpoint,
+      endpoint: endpoint,
+      token_file: opts |> Keyword.fetch!(:token_file) |> Path.expand()
+    })
+  end
+
+  # Fields shared by both transports. `project_id` defaults to the project key.
+  defp base(opts) do
+    environment = Keyword.get(opts, :environment, environment())
+
+    unless environment() in [:dev, :test] and environment in [:dev, :test] do
+      raise ArgumentError, "Litewave runtime access is development-only"
+    end
+
+    project = opts |> Keyword.fetch!(:project) |> Path.expand()
+
     %{
       project: project,
-      project_id: Keyword.fetch!(opts, :project_id),
-      endpoint: endpoint,
-      token_file: opts |> Keyword.fetch!(:token_file) |> Path.expand(),
+      project_id: Keyword.get(opts, :project_id, Litewave.Paths.key(project)),
       owner_uid: current_uid(),
       environment: environment,
       roots: Enum.uniq([project | Keyword.get(opts, :roots, dependency_roots())]),
@@ -54,20 +64,20 @@ defmodule Litewave.Config do
 
   defp from_registration(project, opts) do
     with {:ok, project} <- Litewave.Source.canonical(project),
-         home = System.get_env("LITEWAVE_HOME") || Path.join(System.user_home!(), ".litewave"),
-         key = :crypto.hash(:sha256, project) |> Base.encode16(case: :lower) |> binary_part(0, 24),
-         directory = Path.join([home, "projects", key]),
+         paths = Litewave.Paths.for_project(project),
+         directory = Path.dirname(paths.descriptor),
          {:ok, data} <- File.read(Path.join(directory, "registration.json")),
-         {:ok, %{"project" => ^project, "id" => id}} <- Jason.decode(data),
+         {:ok, %{"project" => ^project}} <- Jason.decode(data),
          {:ok, data} <- File.read(Path.join(directory, "phoenix.json")),
-         {:ok, %{"project_id" => ^id, "endpoint" => endpoint, "token_file" => token_file}} <-
-           Jason.decode(data) do
+         {:ok, %{"project_id" => project_id, "endpoint" => endpoint, "token_file" => token_file}} <-
+           Jason.decode(data),
+         true <- project_id == paths.key do
       origin = endpoint |> URI.parse() |> Map.put(:path, nil) |> URI.to_string()
 
       explicit(
         Keyword.merge(opts,
           project: project,
-          project_id: id,
+          project_id: project_id,
           endpoint: origin,
           token_file: token_file
         )
@@ -96,7 +106,7 @@ defmodule Litewave.Config do
     if is_boolean(value), do: value, else: raise(ArgumentError, "#{key} must be a boolean")
   end
 
-  defp current_uid do
+  def current_uid do
     {uid, 0} = System.cmd("id", ["-u"])
     uid |> String.trim() |> String.to_integer()
   end

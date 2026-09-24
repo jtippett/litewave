@@ -52,6 +52,12 @@ defmodule Litewave.RuntimeTest do
     assert get_resp_header(response, "cache-control") == ["no-store"]
   end
 
+  test "project_id defaults to the project key when not supplied", ctx do
+    config = Litewave.init(Keyword.delete(ctx.opts, :project_id))
+    assert config.project_id == Litewave.Paths.key(config.project)
+    assert config.transport == :endpoint
+  end
+
   test "rejects remote peer, forged host/origin, missing token, and public token files", ctx do
     for transform <- [
           &%{&1 | remote_ip: {10, 1, 1, 1}},
@@ -240,26 +246,26 @@ defmodule Litewave.RuntimeTest do
     end)
 
     {:ok, project} = Litewave.Source.canonical(ctx.config.project)
-    key = :crypto.hash(:sha256, project) |> Base.encode16(case: :lower) |> binary_part(0, 24)
+    key = Litewave.Paths.key(project)
     dir = Path.join([ctx.directory, "projects", key])
     File.mkdir_p!(dir)
 
     File.write!(
       Path.join(dir, "registration.json"),
-      Jason.encode!(%{project: project, id: "registered-project"})
+      Jason.encode!(%{project: project})
     )
 
     File.write!(
       Path.join(dir, "phoenix.json"),
       Jason.encode!(%{
-        project_id: "registered-project",
+        project_id: key,
         endpoint: "http://localhost:4700/litewave/runtime",
         token_file: ctx.config.token_file
       })
     )
 
     config = Litewave.init(registration: project)
-    assert config.project_id == "registered-project"
+    assert config.project_id == key
     refute config.allow_eval
     refute config.allow_sql
     assert config.token_file == ctx.config.token_file
