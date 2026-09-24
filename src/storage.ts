@@ -18,6 +18,21 @@ export const hash = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");
 export const home = () =>
   path.resolve(process.env.LITEWAVE_HOME ?? path.join(homedir(), ".litewave"));
+export const projectKey = (canonical: string) => hash(canonical).slice(0, 24);
+export const projectDirectory = (canonical: string) =>
+  path.join(home(), "projects", projectKey(canonical));
+export const runtimeSocketPath = (canonical: string) =>
+  path.join(home(), "run", `p${projectKey(canonical).slice(0, 16)}.sock`);
+export type RuntimeDescriptor = {
+  version: 1;
+  project: string;
+  project_id: string;
+  runtime_id: string;
+  os_pid: number;
+  socket: string;
+  started_at: string;
+  capabilities: string[];
+};
 export async function exists(file: string): Promise<boolean> {
   return lstat(file).then(
     () => true,
@@ -125,8 +140,9 @@ export async function register(
       "permission_denied",
       "App must be an HTTP(S) URL without credentials.",
     );
-  const base = await realpath(await privateDir(home()).then(home));
-  const directory = path.join(base, "projects", hash(canonical).slice(0, 24));
+  await privateDir(home());
+  const base = home();
+  const directory = projectDirectory(canonical);
   await privateDir(path.join(base, "projects"));
   await privateDir(directory);
   const file = path.join(directory, "registration.json");
@@ -172,12 +188,7 @@ export async function register(
 export async function registration(project: string): Promise<Registration> {
   const canonical = await realpath(project);
   const r = await readJson<Registration>(
-    path.join(
-      home(),
-      "projects",
-      hash(canonical).slice(0, 24),
-      "registration.json",
-    ),
+    path.join(projectDirectory(canonical), "registration.json"),
   ).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT")
       throw new AccessError(
