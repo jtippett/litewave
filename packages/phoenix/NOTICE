@@ -1,0 +1,10 @@
+Litewave Phoenix original code is MIT licensed; see LICENSE.
+
+lib/litewave/introspection.ex is adapted from Tidewave.MCP.Tools.Source:
+https://github.com/tidewave-ai/tidewave_phoenix
+Copyright (c) 2025 Dashbit, Apache License 2.0.
+Its source-location helpers derive from Elixir's IEx.Introspection,
+also licensed under Apache License 2.0.
+See LICENSE-APACHE and the file header for modifications.
+
+Plug, Jason, Ecto SQL, and other dependencies retain their own licenses.

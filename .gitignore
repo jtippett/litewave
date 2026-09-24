@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.litewave/
+*.tgz
+.DS_Store
+
+/packages/phoenix/_build/
+/packages/phoenix/deps/
+/packages/phoenix/erl_crash.dump
+/packages/phoenix/*.ez
+
+# Private customer feedback and raw investigation evidence
+/local-feedback/

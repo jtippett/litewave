@@ -1,0 +1,17 @@
+Litewave original code is licensed under MIT; see LICENSE.
+
+Runtime dependencies:
+- Playwright / playwright-core: Apache-2.0, Microsoft Corporation.
+- Model Context Protocol TypeScript SDK: MIT.
+- Zod: MIT.
+
+The npm lockfile records the full dependency tree. See docs/dependency-licenses.md
+for the installed package license inventory. Preserve the license and notice
+files supplied by dependencies when redistributing their code. Chromium is
+installed separately and carries its own third-party licenses.
+
+Upstream references:
+- microsoft/playwright-mcp (Apache-2.0)
+- tidewave-ai/tidewave_phoenix (Apache-2.0): the separate Phoenix package adapts source lookup helpers; see packages/phoenix/NOTICE and LICENSE-APACHE.
+
+See docs/architecture.md for the reuse assessment.

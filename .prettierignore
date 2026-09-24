@@ -1,0 +1,11 @@
+node_modules
+dist
+package-lock.json
+docs/spec.md
+
+packages/phoenix/_build
+packages/phoenix/deps
+packages/phoenix/mix.lock
+
+# Private customer feedback and raw investigation evidence
+/local-feedback/

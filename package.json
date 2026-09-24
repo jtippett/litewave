@@ -1,0 +1,49 @@
+{
+  "name": "litewave",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Local browser access for agents, with durable sessions and honest action outcomes.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "bin": {
+    "litewave": "dist/src/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "docs/architecture.md",
+    "docs/status.md",
+    "docs/dependency-licenses.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:browser": "npm run build && node --test dist/test/browser*.integration.js",
+    "check": "npm run format:check && npm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "browser:install": "playwright install chromium",
+    "test:phoenix": "npm run build && cd packages/phoenix && mix precommit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "playwright": "1.62.0",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "prettier": "3.8.1",
+    "typescript": "7.0.2"
+  }
+}
