@@ -96,10 +96,10 @@ async function main() {
       command === "phoenix setup"
         ? await setupPhoenix(r)
         : command === "phoenix status"
-          ? await callPhoenix(r, "phoenix_health")
+          ? await callPhoenix(r.project, "phoenix_health")
           : command === "phoenix call"
             ? await callPhoenix(
-                r,
+                r.project,
                 values.tool as PhoenixTool,
                 JSON.parse(values.json ?? "{}"),
               )

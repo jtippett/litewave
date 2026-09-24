@@ -139,7 +139,7 @@ export async function doctor(r: Registration) {
     uploads: uploadPolicy(r),
     app,
     phoenix: (await exists(path.join(r.directory, "phoenix.json")))
-      ? await callPhoenix(r, "phoenix_health")
+      ? await callPhoenix(r.project, "phoenix_health")
       : { status: "not_configured" },
     browser: browser?.result ?? {
       state: "unavailable",

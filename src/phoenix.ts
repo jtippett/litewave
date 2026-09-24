@@ -1,10 +1,19 @@
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { AccessError } from "./protocol.js";
-import { exists, readJson, type Registration } from "./storage.js";
+import { requestJson, TransportError } from "./http.js";
+import {
+  exists,
+  projectDirectory,
+  projectKey,
+  readJson,
+  runtimeSocketPath,
+  type Registration,
+  type RuntimeDescriptor,
+} from "./storage.js";
 
 const requestId = z.string().min(1).max(200);
 const timeout = z.number().int().min(1).max(30_000).optional();
@@ -99,6 +108,10 @@ export type PhoenixResult = {
   } | null;
   [key: string]: unknown;
 };
+export type RuntimeTarget = { project: string; projectId: string } & (
+  | { kind: "socket"; socketPath: string }
+  | { kind: "http"; endpoint: URL; tokenFile: string }
+);
 
 function endpoint(value: string) {
   const url = new URL(value);
@@ -121,6 +134,7 @@ function endpoint(value: string) {
 export async function setupPhoenix(r: Registration) {
   const file = path.join(r.directory, "phoenix.json");
   const runtimeEndpoint = endpoint(new URL("/litewave/runtime", r.app).href);
+  const projectId = projectKey(r.project);
   if (!(await exists(file))) {
     const tokenFile = path.join(r.directory, "phoenix-token");
     // Exclusive creation prevents replacing a token already used by an app.
@@ -137,7 +151,7 @@ export async function setupPhoenix(r: Registration) {
       version: 1,
       endpoint: runtimeEndpoint.href,
       token_file: tokenFile,
-      project_id: r.id,
+      project_id: projectId,
     };
     const fd = await open(file, "wx", 0o600);
     try {
@@ -147,37 +161,80 @@ export async function setupPhoenix(r: Registration) {
       await fd.close();
     }
   }
-  const connection = await phoenixConnection(r);
+  const connection = await readJson<PhoenixConnection>(file);
   const literal = (text: string) =>
     JSON.stringify(text).replaceAll("#{", "\\#{");
   return {
     endpoint: connection.endpoint,
-    project_id: r.id,
-    plug: `if Mix.env() == :dev do\n  plug Litewave,\n    project: ${literal(r.project)},\n    project_id: ${literal(r.id)},\n    endpoint: ${literal(new URL(connection.endpoint).origin)},\n    token_file: ${literal(connection.token_file)},\n    allow_eval: false,\n    allow_sql: false\nend`,
-    next: "Add the development-only litewave_phoenix dependency and this Plug before body parsers. The app owner must restart the app once to load the dependency. Evaluation and SQL remain disabled until explicitly enabled in the Plug.",
+    project_id: projectId,
+    plug: `if Mix.env() == :dev do\n  plug Litewave,\n    project: ${literal(r.project)},\n    endpoint: ${literal(new URL(connection.endpoint).origin)},\n    token_file: ${literal(connection.token_file)},\n    allow_eval: false,\n    allow_sql: false\nend`,
+    next: "This HTTP transport is optional. The default is the Unix socket the litewave_phoenix dependency publishes at boot with no Plug or token. Use this Plug only if you want runtime access on the app's HTTP port; mount it before body parsers and restart the app once.",
   };
 }
-export async function phoenixConnection(r: Registration) {
-  const file = path.join(r.directory, "phoenix.json");
-  if (!(await exists(file)))
-    throw new AccessError(
-      "phoenix_not_configured",
-      "Run litewave phoenix setup --project PATH first.",
-    );
-  const config = await readJson<PhoenixConnection>(file);
-  if (
-    config.version !== 1 ||
-    config.project_id !== r.id ||
-    typeof config.token_file !== "string" ||
-    !path.isAbsolute(config.token_file)
-  )
-    throw new AccessError(
-      "permission_denied",
-      "Phoenix connection identity is invalid.",
-    );
-  endpoint(config.endpoint);
-  return config;
+
+export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
+  const canonical = await realpath(project);
+  const projectId = projectKey(canonical);
+  const directory = projectDirectory(canonical);
+  const descriptorFile = path.join(directory, "runtime.json");
+  if (await exists(descriptorFile)) {
+    let d: RuntimeDescriptor;
+    try {
+      d = await readJson<RuntimeDescriptor>(descriptorFile);
+    } catch (error) {
+      if (error instanceof AccessError) throw error;
+      throw new AccessError(
+        "runtime_unavailable",
+        "The runtime descriptor is unreadable. Restart the app to republish it.",
+        "doctor",
+      );
+    }
+    if (
+      d.version !== 1 ||
+      d.project !== canonical ||
+      d.project_id !== projectId ||
+      d.socket !== runtimeSocketPath(canonical) ||
+      typeof d.os_pid !== "number"
+    )
+      throw new AccessError(
+        "permission_denied",
+        "Runtime descriptor identity is invalid.",
+      );
+    return {
+      kind: "socket",
+      project: canonical,
+      projectId,
+      socketPath: d.socket,
+    };
+  }
+  const file = path.join(directory, "phoenix.json");
+  if (await exists(file)) {
+    const config = await readJson<PhoenixConnection>(file);
+    if (
+      config.version !== 1 ||
+      config.project_id !== projectId ||
+      typeof config.token_file !== "string" ||
+      !path.isAbsolute(config.token_file)
+    )
+      throw new AccessError(
+        "permission_denied",
+        "Phoenix connection identity is invalid.",
+      );
+    return {
+      kind: "http",
+      project: canonical,
+      projectId,
+      endpoint: endpoint(config.endpoint),
+      tokenFile: config.token_file,
+    };
+  }
+  throw new AccessError(
+    "phoenix_not_configured",
+    "No Litewave runtime is published for this project. Add the litewave_phoenix dependency to the app and restart it, or run litewave phoenix setup --project PATH for the HTTP transport.",
+    "doctor",
+  );
 }
+
 async function token(file: string) {
   const fd = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
@@ -212,7 +269,7 @@ function runtimeFailure(
   };
 }
 export async function callPhoenix(
-  r: Registration,
+  project: string,
   method: PhoenixTool,
   input: unknown = {},
 ): Promise<PhoenixResult> {
@@ -225,10 +282,9 @@ export async function callPhoenix(
       "Invalid Phoenix tool or arguments.",
     );
   const mutation = ["project_eval", "execute_sql_query"].includes(method);
-  let sent = false;
+  let target: RuntimeTarget;
   try {
-    const config = await phoenixConnection(r);
-    const secret = await token(config.token_file);
+    target = await resolveRuntime(project);
     const args = parsed.data as Record<string, unknown>;
     const body =
       method === "phoenix_health"
@@ -236,7 +292,7 @@ export async function callPhoenix(
         : JSON.stringify({
             ...args,
             method,
-            project_id: r.id,
+            project_id: target.projectId,
             request_id: args.request_id ?? randomUUID(),
           });
     if (body && Buffer.byteLength(body) > 65_536)
@@ -244,24 +300,29 @@ export async function callPhoenix(
         "request_too_large",
         "Runtime requests must fit within 64 KiB.",
       );
-    sent = true;
-    const response = await fetch(config.endpoint, {
-      method: body ? "POST" : "GET",
-      body,
-      headers: {
-        authorization: `Bearer ${secret}`,
-        ...(body ? { "content-type": "application/json" } : {}),
+    const headers: Record<string, string> = body
+      ? { "content-type": "application/json" }
+      : {};
+    if (target.kind === "http")
+      headers.authorization = `Bearer ${await token(target.tokenFile)}`;
+    const response = await requestJson(
+      target.kind === "socket"
+        ? { socketPath: target.socketPath, path: "/litewave/runtime" }
+        : { url: target.endpoint },
+      {
+        method: body ? "POST" : "GET",
+        body,
+        headers,
+        timeoutMs: method === "phoenix_health" ? 2000 : 35_000,
       },
-      redirect: "manual",
-      signal: AbortSignal.timeout(method === "phoenix_health" ? 2000 : 35_000),
-    });
+    );
     if (response.status >= 300 && response.status < 400)
       return runtimeFailure(
         "permission_denied",
         "Runtime redirects are not followed.",
         mutation,
       );
-    if (!response.ok)
+    if (response.status < 200 || response.status >= 300)
       return runtimeFailure(
         response.status === 403 ? "permission_denied" : "runtime_http_error",
         `Runtime returned HTTP ${response.status}.`,
@@ -273,37 +334,18 @@ export async function callPhoenix(
         "Runtime returned an empty response.",
         mutation,
       );
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      size += chunk.value.length;
-      if (size > 1_048_576) {
-        await reader.cancel();
-        return runtimeFailure(
-          "response_too_large",
-          "Runtime response exceeded 1 MiB.",
-          mutation,
-        );
-      }
-      chunks.push(chunk.value);
-    }
-    const result = JSON.parse(
-      Buffer.concat(chunks).toString("utf8"),
-    ) as PhoenixResult;
+    const result = JSON.parse(response.body) as PhoenixResult;
     if (
-      result.project_id !== r.id ||
+      result.project_id !== target.projectId ||
       typeof result.runtime_id !== "string" ||
       result.protocol_version !== 1
     )
       return runtimeFailure(
         "project_mismatch",
-        "The responding runtime identity does not match this registration.",
+        "The responding runtime identity does not match this project.",
         mutation,
       );
-    if (method === "phoenix_health" && result.project !== r.project)
+    if (method === "phoenix_health" && result.project !== target.project)
       return runtimeFailure(
         "project_mismatch",
         "The responding runtime has a different project directory.",
@@ -312,12 +354,25 @@ export async function callPhoenix(
   } catch (error) {
     if (error instanceof AccessError)
       return runtimeFailure(error.code, error.message);
+    if (error instanceof TransportError) {
+      if (error.code === "response_too_large")
+        return runtimeFailure(error.code, error.message, mutation);
+      if (!error.sent)
+        return runtimeFailure(
+          "runtime_unavailable",
+          "The runtime socket refused the connection; the app is not running or has not published its runtime yet. Restart the app, then retry.",
+        );
+      return runtimeFailure(
+        "runtime_unavailable",
+        mutation
+          ? "The runtime response was lost. Inspect runtime_action_status with the original request_id and runtime_id; do not replay automatically."
+          : "The runtime response was lost.",
+        mutation,
+      );
+    }
     return runtimeFailure(
       "runtime_unavailable",
-      mutation && sent
-        ? "The runtime response was lost. Inspect runtime_action_status with the original request_id and runtime_id; do not replay automatically."
-        : "Phoenix runtime is unavailable. Check installation, token permissions, and whether the app is running.",
-      mutation && sent,
+      "Phoenix runtime is unavailable. Check installation and whether the app is running.",
     );
   }
 }

@@ -49,7 +49,7 @@ export async function mcp(r: Registration) {
           },
         },
         async (args: unknown) => {
-          const result = await callPhoenix(r, name, args);
+          const result = await callPhoenix(r.project, name, args);
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result) }],
             structuredContent: result,
