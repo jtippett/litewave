@@ -52,6 +52,21 @@ defmodule Litewave.RuntimeTest do
     assert get_resp_header(response, "cache-control") == ["no-store"]
   end
 
+  test "socket config reads application environment, canonicalises the project, and has no endpoint" do
+    Application.put_env(:litewave_phoenix, :allow_eval, true)
+    on_exit(fn -> Application.delete_env(:litewave_phoenix, :allow_eval) end)
+    config = Litewave.Config.socket(environment: :test)
+    {:ok, expected} = Litewave.Source.canonical(Path.dirname(Mix.Project.project_file()))
+    assert config.project == expected
+    assert config.project_id == Litewave.Paths.key(expected)
+    assert config.transport == :socket
+    assert config.endpoint == nil
+    assert config.token_file == nil
+    assert config.allow_eval == true
+    assert config.allow_sql == false
+    assert Litewave.Config.socket(environment: :test, allow_eval: false).allow_eval == false
+  end
+
   test "project_id defaults to the project key when not supplied", ctx do
     config = Litewave.init(Keyword.delete(ctx.opts, :project_id))
     assert config.project_id == Litewave.Paths.key(config.project)

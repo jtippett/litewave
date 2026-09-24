@@ -18,6 +18,30 @@ defmodule Litewave.Config do
     end
   end
 
+  @env_options ~w(allow_eval allow_sql repos roots timeout max_output_bytes max_rows project environment)a
+
+  def socket(opts \\ []) when is_list(opts) do
+    from_env = :litewave_phoenix |> Application.get_all_env() |> Keyword.take(@env_options)
+    opts = Keyword.merge(from_env, opts)
+
+    project =
+      case Keyword.fetch(opts, :project) do
+        {:ok, project} -> project
+        :error -> Path.dirname(Mix.Project.project_file())
+      end
+
+    project =
+      case Litewave.Source.canonical(project) do
+        {:ok, canonical} -> canonical
+        _ -> Path.expand(project)
+      end
+
+    opts
+    |> Keyword.put(:project, project)
+    |> base()
+    |> Map.merge(%{transport: :socket, endpoint: nil, token_file: nil})
+  end
+
   defp explicit(opts) do
     endpoint = opts |> Keyword.fetch!(:endpoint) |> URI.parse()
 
