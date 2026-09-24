@@ -26,9 +26,11 @@ export function requestJson(
   return new Promise((resolve, reject) => {
     let sent = false;
     let settled = false;
+    let deadline: NodeJS.Timeout;
     const fail = (code: TransportError["code"], message: string) => {
       if (settled) return;
       settled = true;
+      clearTimeout(deadline);
       reject(new TransportError(code, message, sent));
     };
     const headers = {
@@ -56,6 +58,13 @@ export function requestJson(
             target.url,
             options,
           );
+    // The socket "timeout" option above is an idle timeout: it only fires
+    // when the connection goes quiet. A peer that trickles a byte now and
+    // then never trips it, so this deadline enforces a hard total budget.
+    deadline = setTimeout(() => {
+      req.destroy();
+      fail("connection_failed", "Runtime request timed out.");
+    }, init.timeoutMs);
     req.on("socket", (socket) => {
       socket.once("connect", () => {
         sent = true;
@@ -83,6 +92,7 @@ export function requestJson(
       res.on("end", () => {
         if (settled) return;
         settled = true;
+        clearTimeout(deadline);
         resolve({
           status: res.statusCode ?? 0,
           body: Buffer.concat(chunks).toString("utf8"),

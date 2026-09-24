@@ -61,6 +61,17 @@ function fixture(project: string, projectId: string): Fixture {
         res.end("x".repeat(1_048_577));
         return;
       }
+      if (f.mode === "garbage") {
+        res.setHeader("content-type", "application/json");
+        res.end("not json{");
+        return;
+      }
+      if (f.mode === "slow") {
+        res.setHeader("content-type", "application/json");
+        const interval = setInterval(() => res.write("."), 300);
+        req.socket.once("close", () => clearInterval(interval));
+        return;
+      }
       res.setHeader("content-type", "application/json");
       res.end(
         JSON.stringify({
@@ -147,6 +158,30 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
       (await callPhoenix(project, "phoenix_health")).error?.code,
       "response_too_large",
     );
+
+    // A 2xx body that isn't JSON is a lost-response case for a mutation
+    // (the server may have already applied it), not "never dispatched".
+    f.mode = "garbage";
+    const garbageMutation = await callPhoenix(project, "project_eval", {
+      code: ":ok",
+      runtime_id: "instance-1",
+      request_id: "garbage-id",
+    });
+    assert.equal(garbageMutation.status, "outcome_unknown");
+    assert.equal(garbageMutation.error?.dispatch_occurred, "unknown");
+    const garbageHealth = await callPhoenix(project, "phoenix_health");
+    assert.equal(garbageHealth.status, "error");
+    assert.equal(garbageHealth.error?.code, "invalid_response");
+
+    // An idle timeout alone won't catch a peer trickling bytes forever; the
+    // hard deadline must still cut the call off close to the budget.
+    f.mode = "slow";
+    const slowStart = Date.now();
+    const slow = await callPhoenix(project, "phoenix_health");
+    const elapsed = Date.now() - slowStart;
+    assert.equal(slow.error?.code, "runtime_unavailable");
+    assert.ok(elapsed < 4000, `expected < 4000ms, took ${elapsed}ms`);
+
     f.mode = "healthy";
 
     // Descriptor pointing somewhere other than the derived socket is rejected.

@@ -334,7 +334,16 @@ export async function callPhoenix(
         "Runtime returned an empty response.",
         mutation,
       );
-    const result = JSON.parse(response.body) as PhoenixResult;
+    let result: PhoenixResult;
+    try {
+      result = JSON.parse(response.body) as PhoenixResult;
+    } catch {
+      return runtimeFailure(
+        "invalid_response",
+        "Runtime returned a response that is not JSON.",
+        mutation,
+      );
+    }
     if (
       result.project_id !== target.projectId ||
       typeof result.runtime_id !== "string" ||
