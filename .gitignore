@@ -8,6 +8,7 @@ dist/
 /packages/phoenix/deps/
 /packages/phoenix/erl_crash.dump
 /packages/phoenix/*.ez
+/packages/phoenix/priv/plts/
 
 # Private customer feedback and raw investigation evidence
 /local-feedback/

@@ -8,11 +8,16 @@ defmodule Litewave.MixProject do
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      aliases: [precommit: ["compile --warnings-as-errors", "format --check-formatted", "test"]],
+      aliases: aliases(),
       description: "Local Phoenix runtime access for Litewave",
       package: [
         licenses: ["MIT", "Apache-2.0"],
         files: ~w(lib mix.exs README.md LICENSE LICENSE-APACHE NOTICE)
+      ],
+      dialyzer: [
+        plt_add_apps: [:mix, :iex, :ex_unit],
+        plt_file: {:no_warn, "priv/plts/litewave_phoenix.plt"},
+        flags: [:unmatched_returns, :error_handling, :extra_return, :missing_return]
       ]
     ]
   end
@@ -30,7 +35,21 @@ defmodule Litewave.MixProject do
       {:ecto_sql, "~> 3.13", optional: true},
       {:postgrex, "~> 0.21", only: :test},
       {:bandit, "~> 1.10"},
-      {:req, "~> 0.7", only: :test}
+      {:req, "~> 0.7", only: :test},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      precommit: [
+        "compile --warnings-as-errors",
+        "format --check-formatted",
+        "credo --strict",
+        "dialyzer",
+        "test"
+      ]
     ]
   end
 
