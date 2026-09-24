@@ -67,6 +67,24 @@ defmodule Litewave.RuntimeTest do
     assert Litewave.Config.socket(environment: :test, allow_eval: false).allow_eval == false
   end
 
+  test "health reports app_url only while a Phoenix endpoint process is running", ctx do
+    assert Litewave.AppURL.detect() == nil
+    assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == nil
+
+    {:ok, agent} = Agent.start_link(fn -> nil end, name: Litewave.TestPhoenixEndpoint)
+    assert Litewave.AppURL.detect() == "http://localhost:4123"
+    assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == "http://localhost:4123"
+    Agent.stop(agent)
+    assert Litewave.AppURL.detect() == nil
+  end
+
+  test "the listener child is controlled by the enabled flag" do
+    children = Supervisor.which_children(Litewave.Supervisor) |> Enum.map(&elem(&1, 0))
+    refute Litewave.Listener in children, "test config sets enabled: false"
+    assert Litewave.Application.children(true) |> Enum.member?(Litewave.Listener)
+    refute Litewave.Application.children(false) |> Enum.member?(Litewave.Listener)
+  end
+
   test "project_id defaults to the project key when not supplied", ctx do
     config = Litewave.init(Keyword.delete(ctx.opts, :project_id))
     assert config.project_id == Litewave.Paths.key(config.project)

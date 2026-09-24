@@ -23,7 +23,8 @@ defmodule Litewave.Handler do
       capabilities: capabilities(config),
       repos: Enum.map(config.repos, &inspect/1),
       sql_mode: if(config.allow_sql, do: "read_write", else: "disabled"),
-      transport: config.transport
+      transport: config.transport,
+      app_url: Litewave.AppURL.detect()
     })
   end
 
