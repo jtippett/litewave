@@ -2,6 +2,10 @@
 # Copyright (c) 2025 Dashbit. Licensed under Apache-2.0; see LICENSE-APACHE.
 # Source-location traversal derives from IEx.Introspection in Elixir.
 # Changes: no transport schemas, no rescue, known-module/function parsing, structured absolute locations.
+# credo:disable-for-this-file Credo.Check.Refactor.Nesting
+# Kept close to the upstream Tidewave source; see NOTICE.
+# credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
+# Kept close to the upstream Tidewave source; see NOTICE.
 defmodule Litewave.Introspection do
   @moduledoc false
 

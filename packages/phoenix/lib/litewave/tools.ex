@@ -1,5 +1,6 @@
 defmodule Litewave.Tools do
   @moduledoc false
+  alias Ecto.Adapters.SQL, as: EctoSQL
   alias Litewave.Output
   @compile {:no_warn_undefined, Ecto.Adapters.SQL}
 
@@ -27,10 +28,10 @@ defmodule Litewave.Tools do
 
   def dispatch("execute_sql_query", args, config) do
     with true <- config.allow_sql,
-         true <- Code.ensure_loaded?(Ecto.Adapters.SQL),
+         true <- Code.ensure_loaded?(EctoSQL),
          {:ok, repo} <- repository(args["repo"], config.repos),
          {:ok, result} <-
-           Ecto.Adapters.SQL.query(repo, args["query"], Map.get(args, "arguments", []),
+           EctoSQL.query(repo, args["query"], Map.get(args, "arguments", []),
              timeout: min(Map.get(args, "timeout", config.timeout), config.timeout),
              log: false
            ) do

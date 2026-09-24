@@ -8,9 +8,10 @@ defmodule Litewave.Logs do
 
   @impl true
   def init(_) do
-    :ets.new(__MODULE__, [:named_table, :public, :ordered_set, write_concurrency: true])
+    _ = :ets.new(__MODULE__, [:named_table, :public, :ordered_set, write_concurrency: true])
     :ets.insert(__MODULE__, {:sequence, 0})
-    :logger.remove_handler(__MODULE__)
+    # No prior handler is expected; ignore {:error, {:not_found, _}} if one is missing.
+    _ = :logger.remove_handler(__MODULE__)
     :ok = :logger.add_handler(__MODULE__, __MODULE__, %{level: :all})
     {:ok, nil}
   end
@@ -52,42 +53,53 @@ defmodule Litewave.Logs do
     level = Map.get(args, "level")
     grep = Map.get(args, "grep", "")
 
-    if is_integer(cursor) and cursor >= 0 and is_integer(tail) and tail in 1..200 and
-         (is_nil(level) or level in @levels) and is_binary(grep) and byte_size(grep) <= 200 do
-      latest = :ets.lookup_element(__MODULE__, :sequence, 2)
-      earliest = max(1, latest - @capacity + 1)
-      reset? = cursor > latest
-      after_cursor = if reset?, do: 0, else: cursor
-
-      entries =
-        :ets.tab2list(__MODULE__)
-        |> Enum.filter(fn {id, _} -> is_integer(id) and id > after_cursor and id <= latest end)
-        |> Enum.sort_by(&elem(&1, 0))
-        |> Enum.map(&elem(&1, 1))
-        |> Enum.filter(fn entry ->
-          (is_nil(level) or level == entry.level) and
-            String.contains?(String.downcase(entry.text), String.downcase(grep))
-        end)
-
-      selected =
-        if Map.has_key?(args, "cursor"),
-          do: Enum.take(entries, tail),
-          else: Enum.take(entries, -tail)
-
-      more? = Map.has_key?(args, "cursor") and length(entries) > tail
-      next = if more?, do: List.last(selected).cursor, else: latest
-
-      {:ok,
-       %{
-         entries: selected,
-         next_cursor: next,
-         gap: reset? or cursor < earliest - 1,
-         reset: reset?,
-         oldest_cursor: earliest,
-         has_more: more?
-       }}
+    if valid_get_args?(cursor, tail, level, grep) do
+      fetch(args, cursor, tail, level, grep)
     else
       {:error, "invalid_arguments", "Invalid log cursor, tail, level, or grep."}
     end
+  end
+
+  defp valid_get_args?(cursor, tail, level, grep) do
+    is_integer(cursor) and cursor >= 0 and is_integer(tail) and tail in 1..200 and
+      (is_nil(level) or level in @levels) and is_binary(grep) and byte_size(grep) <= 200
+  end
+
+  defp fetch(args, cursor, tail, level, grep) do
+    latest = :ets.lookup_element(__MODULE__, :sequence, 2)
+    earliest = max(1, latest - @capacity + 1)
+    reset? = cursor > latest
+    after_cursor = if reset?, do: 0, else: cursor
+
+    entries = matching_entries(after_cursor, latest, level, grep)
+
+    selected =
+      if Map.has_key?(args, "cursor"),
+        do: Enum.take(entries, tail),
+        else: Enum.take(entries, -tail)
+
+    more? = Map.has_key?(args, "cursor") and length(entries) > tail
+    next = if more?, do: List.last(selected).cursor, else: latest
+
+    {:ok,
+     %{
+       entries: selected,
+       next_cursor: next,
+       gap: reset? or cursor < earliest - 1,
+       reset: reset?,
+       oldest_cursor: earliest,
+       has_more: more?
+     }}
+  end
+
+  defp matching_entries(after_cursor, latest, level, grep) do
+    :ets.tab2list(__MODULE__)
+    |> Enum.filter(fn {id, _} -> is_integer(id) and id > after_cursor and id <= latest end)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(&elem(&1, 1))
+    |> Enum.filter(fn entry ->
+      (is_nil(level) or level == entry.level) and
+        String.contains?(String.downcase(entry.text), String.downcase(grep))
+    end)
   end
 end

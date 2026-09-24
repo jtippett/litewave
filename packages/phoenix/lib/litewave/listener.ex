@@ -139,7 +139,7 @@ defmodule Litewave.Listener do
       :exit, _ -> :ok
     end
 
-    File.rm(socket)
+    _ = File.rm(socket)
     :ok
   end
 
@@ -195,7 +195,7 @@ defmodule Litewave.Listener do
       :ok
     else
       {:error, reason} ->
-        File.rm(temp)
+        _ = File.rm(temp)
         {:error, "cannot write runtime descriptor: #{inspect(reason)}"}
     end
   end
@@ -217,8 +217,8 @@ defmodule Litewave.Listener do
   def terminate(_reason, state), do: cleanup(state)
 
   defp cleanup(%{status: :listening} = state) do
-    if state.descriptor, do: File.rm(state.descriptor)
-    if state.socket, do: File.rm(state.socket)
+    _ = if state.descriptor, do: File.rm(state.descriptor)
+    _ = if state.socket, do: File.rm(state.socket)
     :ok
   end
 

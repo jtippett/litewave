@@ -39,10 +39,7 @@ defmodule Litewave.Handler do
          :ok <- validate(args, config) do
       result =
         if args["method"] == "runtime_action_status" do
-          if args["runtime_id"] == Runtime.identity(),
-            do: Runtime.status(config.project_id, args["action_id"]),
-            else:
-              Runtime.error("runtime_changed", "The recorded runtime is no longer active.", false)
+          runtime_action_status_result(args, config)
         else
           Runtime.execute(args, config)
         end
@@ -71,6 +68,12 @@ defmodule Litewave.Handler do
 
   def handle(conn, _config),
     do: respond(conn, 405, Runtime.error("method_not_allowed", "Use GET or POST.", false))
+
+  defp runtime_action_status_result(args, config) do
+    if args["runtime_id"] == Runtime.identity(),
+      do: Runtime.status(config.project_id, args["action_id"]),
+      else: Runtime.error("runtime_changed", "The recorded runtime is no longer active.", false)
+  end
 
   defp validate(args, config) do
     method = args["method"]

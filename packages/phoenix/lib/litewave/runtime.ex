@@ -55,25 +55,47 @@ defmodule Litewave.Runtime do
     hash = :crypto.hash(:sha256, :erlang.term_to_binary(operation, [:deterministic]))
     existing = if mutation?, do: state.actions[key]
 
+    case execute_reply(state, operation, mutation?, existing, hash) do
+      {:reply, reply} -> {:reply, reply, state}
+      :run -> start_execution(state, from, method, operation, config, key, mutation?, hash)
+    end
+  end
+
+  defp execute_reply(state, operation, mutation?, existing, hash) do
+    with :cont <- runtime_identity_reply(state, operation, mutation?),
+         :cont <- existing_reply(existing, hash),
+         :cont <- capacity_reply(state, mutation?) do
+      :run
+    end
+  end
+
+  defp runtime_identity_reply(state, operation, mutation?) do
+    if mutation? and operation["runtime_id"] != state.id do
+      {:reply,
+       error(
+         "runtime_changed",
+         "Use phoenix_health to inspect the current runtime. Old execution requests are never replayed across a restart.",
+         false
+       )}
+    else
+      :cont
+    end
+  end
+
+  defp existing_reply(nil, _hash), do: :cont
+
+  defp existing_reply(existing, hash) do
+    if existing.hash != hash do
+      {:reply, error("request_id_conflict", "Request ID already has different arguments.", false)}
+    else
+      {:reply, existing.result || %{status: "running", result: nil, error: nil}}
+    end
+  end
+
+  defp capacity_reply(state, mutation?) do
     cond do
-      mutation? and operation["runtime_id"] != state.id ->
-        {:reply,
-         error(
-           "runtime_changed",
-           "Use phoenix_health to inspect the current runtime. Old execution requests are never replayed across a restart.",
-           false
-         ), state}
-
-      existing && existing.hash != hash ->
-        {:reply,
-         error("request_id_conflict", "Request ID already has different arguments.", false),
-         state}
-
-      existing ->
-        {:reply, existing.result || %{status: "running", result: nil, error: nil}, state}
-
       map_size(state.running) >= @max_running ->
-        {:reply, error("runtime_busy", "Too many runtime operations are running.", false), state}
+        {:reply, error("runtime_busy", "Too many runtime operations are running.", false)}
 
       mutation? and map_size(state.actions) >= @max_actions ->
         {:reply,
@@ -81,38 +103,42 @@ defmodule Litewave.Runtime do
            "history_full",
            "Runtime execution history is full; IDs are not evicted or replayed. Read-only tools remain available.",
            false
-         ), state}
+         )}
 
       true ->
-        {:ok, capture} = Capture.start(div(config.max_output_bytes, 2))
-        timeout = min(Map.get(operation, "timeout", config.timeout), config.timeout)
-
-        task =
-          Task.Supervisor.async_nolink(Litewave.TaskSupervisor, fn ->
-            Logger.metadata(litewave_runtime: true)
-            Process.group_leader(self(), capture)
-            Litewave.Tools.dispatch(method, operation, config)
-          end)
-
-        timer = Process.send_after(self(), {:timeout, task.ref}, timeout)
-
-        entry = %{
-          task: task,
-          from: from,
-          capture: capture,
-          timer: timer,
-          key: key,
-          mutation?: mutation?,
-          config: config
-        }
-
-        actions =
-          if mutation?,
-            do: Map.put(state.actions, key, %{hash: hash, result: nil}),
-            else: state.actions
-
-        {:noreply, %{state | running: Map.put(state.running, task.ref, entry), actions: actions}}
+        :cont
     end
+  end
+
+  defp start_execution(state, from, method, operation, config, key, mutation?, hash) do
+    {:ok, capture} = Capture.start(div(config.max_output_bytes, 2))
+    timeout = min(Map.get(operation, "timeout", config.timeout), config.timeout)
+
+    task =
+      Task.Supervisor.async_nolink(Litewave.TaskSupervisor, fn ->
+        Logger.metadata(litewave_runtime: true)
+        Process.group_leader(self(), capture)
+        Litewave.Tools.dispatch(method, operation, config)
+      end)
+
+    timer = Process.send_after(self(), {:timeout, task.ref}, timeout)
+
+    entry = %{
+      task: task,
+      from: from,
+      capture: capture,
+      timer: timer,
+      key: key,
+      mutation?: mutation?,
+      config: config
+    }
+
+    actions =
+      if mutation?,
+        do: Map.put(state.actions, key, %{hash: hash, result: nil}),
+        else: state.actions
+
+    {:noreply, %{state | running: Map.put(state.running, task.ref, entry), actions: actions}}
   end
 
   @impl true
@@ -150,7 +176,7 @@ defmodule Litewave.Runtime do
         {:noreply, state}
 
       entry ->
-        Task.shutdown(entry.task, :brutal_kill)
+        _ = Task.shutdown(entry.task, :brutal_kill)
 
         complete(
           state,
@@ -170,7 +196,7 @@ defmodule Litewave.Runtime do
         {:noreply, state}
 
       {entry, running} ->
-        Process.cancel_timer(entry.timer)
+        _ = Process.cancel_timer(entry.timer)
         io = Capture.contents(entry.capture)
         GenServer.stop(entry.capture)
 
