@@ -15,8 +15,17 @@ import { AccessError } from "./protocol.js";
 
 export const hash = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");
-export const home = () =>
-  path.resolve(process.env.LITEWAVE_HOME ?? path.join(homedir(), ".litewave"));
+// Same normalisation as Elixir's Path.expand: a leading ~ is the home
+// directory and a relative path resolves against the working directory.
+export const home = () => {
+  const configured = process.env.LITEWAVE_HOME;
+  if (!configured) return path.join(homedir(), ".litewave");
+  const expanded =
+    configured === "~" || configured.startsWith("~/")
+      ? path.join(homedir(), configured.slice(1))
+      : configured;
+  return path.resolve(expanded);
+};
 export const projectKey = (canonical: string) => hash(canonical).slice(0, 24);
 export const projectDirectory = (canonical: string) =>
   path.join(home(), "projects", projectKey(canonical));
@@ -192,7 +201,7 @@ export async function registration(project: string): Promise<Registration> {
     if (error.code === "ENOENT")
       throw new AccessError(
         "not_registered",
-        "This project is not registered. Run litewave init --project PATH --app URL.",
+        "This project is not registered. Run litewave init --project PATH (add --app URL if no Litewave runtime is running), then litewave browser open --project PATH.",
         "init",
       );
     throw error;

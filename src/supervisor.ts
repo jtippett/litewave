@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { open } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -153,4 +154,26 @@ export async function doctor(r: Registration) {
           ? "The browser closed. Inspect action_status and downloads, then run stop and browser open for a replacement session. Uncertain actions are not replayed."
           : "Run browser open. If it reports needs_attention, inspect the owning process and socket manually; Litewave does not remove unknown locks.",
   };
+}
+
+// The Playwright package pinned in package.json ships its CLI as cli.js
+// beside package.json; "playwright/cli" is not an exported subpath.
+export function playwrightCli(): string {
+  const pkg = createRequire(import.meta.url).resolve("playwright/package.json");
+  return path.join(path.dirname(pkg), "cli.js");
+}
+
+// Installs the pinned Chromium build. Nothing calls this automatically.
+export function installBrowser(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [playwrightCli(), "install", "chromium"],
+      {
+        stdio: "inherit",
+      },
+    );
+    child.on("error", reject);
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
 }

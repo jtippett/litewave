@@ -258,6 +258,15 @@ test("socket transport: descriptor resolution, identity checks, bounds, lost res
     const fallback = await callPhoenix(project, "phoenix_health");
     assert.equal(fallback.runtime_id, "instance-1");
     assert.equal(httpFixture.authorization, `Bearer ${secret}`);
+
+    httpServer.closeAllConnections();
+    await new Promise<void>((resolve) => httpServer?.close(() => resolve()));
+    httpServer = undefined;
+    const bothDown = await callPhoenix(project, "phoenix_health");
+    assert.equal(bothDown.error?.code, "runtime_unavailable");
+    assert.match(bothDown.error?.message ?? "", /socket/);
+    assert.match(bothDown.error?.message ?? "", /endpoint/);
+    assert.match(bothDown.error?.message ?? "", /not running|down/);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -291,7 +300,7 @@ test("http fallback: setup is private and idempotent, writes the project key, an
     assert.ok(!JSON.stringify(configured).includes(secret));
     assert.deepEqual(await setupPhoenix(registration), configured);
     const target = await resolveRuntime(project);
-    assert.equal(target.kind, "http");
+    assert.equal(target.kind, "endpoint");
     assert.equal(
       (await callPhoenix(project, "phoenix_health")).runtime_id,
       "instance-1",
@@ -314,4 +323,15 @@ test("http fallback: setup is private and idempotent, writes the project key, an
     restore();
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("a project directory that does not exist is an invalid_request, not a raw ENOENT", async () => {
+  const result = await callPhoenix(
+    "/nonexistent/litewave/project",
+    "phoenix_health",
+  );
+  assert.equal(result.status, "error");
+  assert.equal(result.error?.code, "invalid_request");
+  assert.match(result.error?.message ?? "", /does not exist/);
+  assert.equal(result.error?.dispatch_occurred, false);
 });

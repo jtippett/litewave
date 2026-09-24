@@ -62,7 +62,7 @@ defmodule Litewave.HTTPTest do
       System.cmd(node, [script],
         env: [
           {"LITEWAVE_HOME", home},
-          {"LITEWAVE_FIXTURE_TRANSPORT", "http"},
+          {"LITEWAVE_FIXTURE_TRANSPORT", "endpoint"},
           {"LITEWAVE_FIXTURE_DIRECTORY", fixture_directory},
           {"LITEWAVE_FIXTURE_TOKEN_FILE", ctx.token_file},
           {"LITEWAVE_FIXTURE_PROJECT", ctx.config.project},
@@ -72,7 +72,7 @@ defmodule Litewave.HTTPTest do
       )
 
     assert exit_code == 0, output
-    assert output =~ "Phoenix MCP bridge passed over http"
+    assert output =~ "Phoenix MCP bridge passed over endpoint"
   end
 
   test "a restarted adapter rejects old execution identities", ctx do

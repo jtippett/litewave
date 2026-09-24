@@ -110,7 +110,7 @@ export type PhoenixResult = {
 };
 export type RuntimeTarget = { project: string; projectId: string } & (
   | { kind: "socket"; socketPath: string }
-  | { kind: "http"; endpoint: URL; tokenFile: string }
+  | { kind: "endpoint"; endpoint: URL; tokenFile: string }
 );
 
 function endpoint(value: string) {
@@ -216,7 +216,7 @@ async function resolveHttpTarget(
       "Phoenix connection identity is invalid.",
     );
   return {
-    kind: "http",
+    kind: "endpoint",
     project: canonical,
     projectId,
     endpoint: endpoint(config.endpoint),
@@ -225,7 +225,16 @@ async function resolveHttpTarget(
 }
 
 export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
-  const canonical = await realpath(project);
+  const canonical = await realpath(project).catch(
+    (error: NodeJS.ErrnoException) => {
+      throw new AccessError(
+        "invalid_request",
+        error.code === "ENOENT"
+          ? `Project directory does not exist: ${project}`
+          : `Project directory is not accessible: ${project}`,
+      );
+    },
+  );
   const projectId = projectKey(canonical);
   const directory = projectDirectory(canonical);
   const descriptorFile = path.join(directory, "runtime.json");
@@ -338,7 +347,7 @@ export async function callPhoenix(
       const headers: Record<string, string> = body
         ? { "content-type": "application/json" }
         : {};
-      if (t.kind === "http")
+      if (t.kind === "endpoint")
         headers.authorization = `Bearer ${await token(t.tokenFile)}`;
       return requestJson(
         t.kind === "socket"
@@ -368,7 +377,17 @@ export async function callPhoenix(
         ))
       ) {
         target = await resolveHttpTarget(target.project, target.projectId);
-        response = await send(target);
+        try {
+          response = await send(target);
+        } catch (fallbackError) {
+          if (fallbackError instanceof TransportError && !fallbackError.sent)
+            throw new TransportError(
+              "connection_failed",
+              `socket: ${error.message}; endpoint: ${fallbackError.message}`,
+              false,
+            );
+          throw fallbackError;
+        }
       } else throw error;
     }
     if (response.status >= 300 && response.status < 400)
@@ -424,7 +443,7 @@ export async function callPhoenix(
       if (!error.sent)
         return runtimeFailure(
           "runtime_unavailable",
-          "The runtime socket refused the connection; the app is not running or has not published its runtime yet. Restart the app, then retry.",
+          `No runtime answered (${error.message}); the app is not running or has not published its runtime yet. Restart the app, then retry.`,
         );
       return runtimeFailure(
         "runtime_unavailable",

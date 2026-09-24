@@ -7,13 +7,13 @@ import { callPhoenix, resolveRuntime } from "../dist/src/phoenix.js";
 import { atomicJson, projectKey } from "../dist/src/storage.js";
 import { mcp } from "../dist/src/mcp.js";
 
-const transportKind = process.env.LITEWAVE_FIXTURE_TRANSPORT ?? "http";
+const transportKind = process.env.LITEWAVE_FIXTURE_TRANSPORT ?? "endpoint";
 const project = process.env.LITEWAVE_FIXTURE_PROJECT;
 const registration =
-  transportKind === "http"
+  transportKind === "endpoint"
     ? {
         version: 1,
-        id: "http-fixture",
+        id: "endpoint-fixture",
         project,
         app: process.env.LITEWAVE_FIXTURE_ORIGIN,
         directory: process.env.LITEWAVE_FIXTURE_DIRECTORY,
@@ -30,7 +30,7 @@ const registration =
 if (process.argv.includes("--mcp-server")) {
   await mcp({ project, registration });
 } else {
-  if (transportKind === "http") {
+  if (transportKind === "endpoint") {
     await atomicJson(path.join(registration.directory, "phoenix.json"), {
       version: 1,
       endpoint: registration.app + "/litewave/runtime",
@@ -42,13 +42,7 @@ if (process.argv.includes("--mcp-server")) {
   assert.equal(target.kind, transportKind);
   const health = await callPhoenix(project, "phoenix_health");
   assert.equal(health.project_id, projectKey(project), JSON.stringify(health));
-  // Litewave.Config reports the explicit HTTP Plug transport as "endpoint" on
-  // the wire; Node's fixture-only transportKind label for that case is "http".
-  assert.equal(
-    health.transport,
-    transportKind === "http" ? "endpoint" : transportKind,
-    JSON.stringify(health),
-  );
+  assert.equal(health.transport, transportKind, JSON.stringify(health));
   assert.equal(health.sql_mode, "disabled");
   assert.ok(health.capabilities.includes("project_eval"));
   for (let attempt = 0; attempt < 3; attempt++) {

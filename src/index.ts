@@ -1,6 +1,11 @@
 export { register, registration, publicRegistration } from "./storage.js";
 export type { Registration } from "./storage.js";
-export { openBrowser, doctor } from "./supervisor.js";
+export {
+  openBrowser,
+  doctor,
+  playwrightCli,
+  installBrowser,
+} from "./supervisor.js";
 export { rpc } from "./transport.js";
 export { operationSchema, locatorSchema, AccessError } from "./protocol.js";
 export type { Operation, Envelope, Target } from "./protocol.js";

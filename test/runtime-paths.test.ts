@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import path from "node:path";
 import {
   home,
@@ -28,6 +29,21 @@ test("runtime paths derive from LITEWAVE_HOME and the canonical project only", (
       runtimeSocketPath(canonical),
       path.join("/tmp/lw-home", "run", `p${key.slice(0, 16)}.sock`),
     );
+  } finally {
+    if (previous === undefined) delete process.env.LITEWAVE_HOME;
+    else process.env.LITEWAVE_HOME = previous;
+  }
+});
+
+test("LITEWAVE_HOME expands a leading ~ and resolves relative paths like Elixir's Path.expand", () => {
+  const previous = process.env.LITEWAVE_HOME;
+  try {
+    process.env.LITEWAVE_HOME = "~/lw-home-test";
+    assert.equal(home(), path.join(homedir(), "lw-home-test"));
+    process.env.LITEWAVE_HOME = "relative-home";
+    assert.equal(home(), path.resolve("relative-home"));
+    process.env.LITEWAVE_HOME = "~";
+    assert.equal(home(), homedir());
   } finally {
     if (previous === undefined) delete process.env.LITEWAVE_HOME;
     else process.env.LITEWAVE_HOME = previous;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -15,6 +15,7 @@ import {
   runtimeSocketPath,
   registration,
 } from "../src/storage.js";
+import { playwrightCli } from "../src/supervisor.js";
 
 const run = promisify(execFile);
 const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
@@ -39,6 +40,7 @@ test("runtime tools work without a browser registration; init defaults --app fro
       }),
     );
   });
+  const previousHome = process.env.LITEWAVE_HOME;
   process.env.LITEWAVE_HOME = home;
   const socketPath = runtimeSocketPath(project);
   await mkdir(path.dirname(socketPath), { recursive: true, mode: 0o700 });
@@ -104,6 +106,8 @@ test("runtime tools work without a browser registration; init defaults --app fro
     );
     assert.equal((await registration(project)).app, "http://localhost:4123/");
   } finally {
+    if (previousHome === undefined) delete process.env.LITEWAVE_HOME;
+    else process.env.LITEWAVE_HOME = previousHome;
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(root, { recursive: true, force: true });
@@ -128,4 +132,10 @@ test("init without --app and without a runtime names the flag", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("browser install resolves the pinned Playwright CLI without running it", async () => {
+  const cliPath = playwrightCli();
+  assert.match(cliPath, /node_modules[\\/]playwright[\\/]cli\.js$/);
+  await access(cliPath);
 });

@@ -9,7 +9,7 @@ import {
   publicRegistration,
   uploadPolicy,
 } from "./storage.js";
-import { openBrowser, doctor } from "./supervisor.js";
+import { openBrowser, doctor, installBrowser } from "./supervisor.js";
 import { rpc } from "./transport.js";
 import { mcp } from "./mcp.js";
 import { callPhoenix, setupPhoenix, type PhoenixTool } from "./phoenix.js";
@@ -17,6 +17,7 @@ import { callPhoenix, setupPhoenix, type PhoenixTool } from "./phoenix.js";
 const HELP = `Litewave — local browser access (alpha)
 
   litewave init --project PATH [--app URL] [--upload-root PATH ...]
+  litewave browser install
   litewave browser open --project PATH [--headless] [--fresh-profile [--storage-state PATH]]
   litewave status --project PATH
   litewave doctor --project PATH
@@ -33,8 +34,9 @@ containing files you intend to upload; a dedicated uploads folder is optional.
 Without one, browsing, downloads, and Phoenix tools still work. Litewave does not
 create an uploads folder or grant upload access automatically.
 
-init never overwrites a registration. browser open is the only command that
-launches Chromium. Closing a CLI/MCP connection leaves the browser running.
+init never overwrites a registration. browser install downloads the pinned
+Chromium once; browser open is the only command that launches it. Closing a
+CLI/MCP connection leaves the browser running.
 --fresh-profile explicitly creates a separate browser profile and keeps the old one.
 Sign in again, or import an explicitly supplied Playwright storage-state file with
 --storage-state PATH. Treat that file as a password; it contains authentication.
@@ -106,6 +108,10 @@ async function main() {
         2,
       ),
     );
+    return;
+  }
+  if (command === "browser install") {
+    process.exitCode = await installBrowser();
     return;
   }
   if (command.startsWith("phoenix ")) {
