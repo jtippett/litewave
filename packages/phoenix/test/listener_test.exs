@@ -97,4 +97,36 @@ defmodule Litewave.ListenerTest do
     start(ctx)
     assert (File.stat!(run).mode &&& 0o777) == 0o700
   end
+
+  test "stops the bound server and removes the socket if starting fails after binding", ctx do
+    File.mkdir_p!(ctx.paths.descriptor)
+
+    log =
+      capture_log(fn ->
+        pid = start(ctx)
+        assert %{status: :disabled, reason: reason} = Listener.info(pid)
+        assert is_binary(reason)
+      end)
+
+    assert log =~ "Litewave runtime socket is unavailable"
+    refute File.exists?(ctx.paths.socket)
+
+    assert {:error, _} =
+             :gen_tcp.connect({:local, ctx.paths.socket}, 0, [:local, active: false], 500)
+  end
+
+  test "does not delete a socket path it cannot prove is dead", ctx do
+    File.mkdir_p!(Path.dirname(ctx.paths.socket))
+    File.write!(ctx.paths.socket, "not a socket")
+
+    log =
+      capture_log(fn ->
+        pid = start(ctx)
+        assert %{status: :disabled, reason: reason} = Listener.info(pid)
+        assert reason =~ "cannot probe existing socket"
+      end)
+
+    assert log =~ "Litewave runtime socket is unavailable"
+    assert File.read!(ctx.paths.socket) == "not a socket"
+  end
 end

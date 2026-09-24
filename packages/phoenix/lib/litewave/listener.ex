@@ -38,6 +38,12 @@ defmodule Litewave.Listener do
       rescue
         error ->
           disabled(%{socket: nil, descriptor: nil}, Exception.message(error))
+      catch
+        kind, reason ->
+          disabled(
+            %{socket: nil, descriptor: nil},
+            Exception.format(kind, reason, __STACKTRACE__)
+          )
       end
 
     {:ok, state}
@@ -67,14 +73,39 @@ defmodule Litewave.Listener do
              ip: {:local, paths.socket},
              port: 0,
              startup_log: false
-           ),
-         :ok <- File.chmod(paths.socket, 0o600),
-         :ok <- write_descriptor(paths, config) do
-      {:ok, server}
+           ) do
+      finish_start(server, paths, config)
     end
   end
 
+  # Bandit is already bound to the socket at this point. Any failure below must
+  # stop it and remove the socket file, or the listener would report itself
+  # disabled while a bound server keeps accepting connections underneath it.
+  defp finish_start(server, paths, config) do
+    with :ok <- File.chmod(paths.socket, 0o600),
+         :ok <- write_descriptor(paths, config) do
+      {:ok, server}
+    else
+      {:error, reason} ->
+        abort_start(server, paths.socket)
+        {:error, reason}
+    end
+  catch
+    kind, reason ->
+      abort_start(server, paths.socket)
+      {:error, "listener failed to start: #{Exception.format(kind, reason, __STACKTRACE__)}"}
+  end
+
+  defp abort_start(server, socket) do
+    Supervisor.stop(server)
+    File.rm(socket)
+    :ok
+  end
+
   # A socket that accepts a connection has a live owner: report, never replace.
+  # Only a socket that actively refuses connections is provably dead; every
+  # other probe outcome (permission errors, timeouts, a non-socket file, ...)
+  # is left alone and reported instead of guessed at.
   defp clear_stale(socket) do
     case :gen_tcp.connect({:local, socket}, 0, [:local, active: false], 1_000) do
       {:ok, port} ->
@@ -84,12 +115,15 @@ defmodule Litewave.Listener do
       {:error, :enoent} ->
         :ok
 
-      {:error, _refused} ->
+      {:error, :econnrefused} ->
         case File.rm(socket) do
           :ok -> :ok
           {:error, :enoent} -> :ok
           {:error, reason} -> {:error, "cannot remove stale socket: #{inspect(reason)}"}
         end
+
+      {:error, reason} ->
+        {:error, "cannot probe existing socket #{socket}: #{inspect(reason)}"}
     end
   end
 
