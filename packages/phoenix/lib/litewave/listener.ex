@@ -16,34 +16,41 @@ defmodule Litewave.Listener do
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
+    {:ok, boot(opts)}
+  end
 
-    state =
-      try do
-        config = Keyword.get_lazy(opts, :config, fn -> Litewave.Config.socket() end)
-        paths = Paths.for_project(config.project, Keyword.get(opts, :home))
+  # Nothing here may crash the host app: every failure becomes a :disabled
+  # state with a reason. Paths are derived first so that even a failed start
+  # reports where the socket and descriptor would have been.
+  defp boot(opts) do
+    config = Keyword.get_lazy(opts, :config, fn -> Litewave.Config.socket() end)
+    paths = Paths.for_project(config.project, Keyword.get(opts, :home))
+    listen(config, paths)
+  rescue
+    error -> disabled(%{socket: nil, descriptor: nil}, Exception.message(error))
+  catch
+    kind, reason ->
+      disabled(%{socket: nil, descriptor: nil}, describe(kind, reason, __STACKTRACE__))
+  end
 
-        case start(config, paths) do
-          {:ok, server} ->
-            %{
-              status: :listening,
-              server: server,
-              socket: paths.socket,
-              descriptor: paths.descriptor,
-              reason: nil
-            }
+  defp listen(config, paths) do
+    case start(config, paths) do
+      {:ok, server} ->
+        %{
+          status: :listening,
+          server: server,
+          socket: paths.socket,
+          descriptor: paths.descriptor,
+          reason: nil
+        }
 
-          {:error, reason} ->
-            disabled(paths, reason)
-        end
-      rescue
-        error ->
-          disabled(%{socket: nil, descriptor: nil}, Exception.message(error))
-      catch
-        kind, reason ->
-          disabled(%{socket: nil, descriptor: nil}, describe(kind, reason, __STACKTRACE__))
-      end
-
-    {:ok, state}
+      {:error, reason} ->
+        disabled(paths, reason)
+    end
+  rescue
+    error -> disabled(paths, Exception.message(error))
+  catch
+    kind, reason -> disabled(paths, describe(kind, reason, __STACKTRACE__))
   end
 
   defp disabled(paths, reason) do
@@ -65,6 +72,7 @@ defmodule Litewave.Listener do
          :ok <- private_dir(Path.join(paths.home, "projects")),
          :ok <- private_dir(Path.dirname(paths.socket)),
          :ok <- private_dir(Path.dirname(paths.descriptor)),
+         :ok <- sweep_partials(paths.descriptor),
          :ok <- clear_stale(paths.socket),
          {:ok, server} <-
            Bandit.start_link(
@@ -153,6 +161,13 @@ defmodule Litewave.Listener do
     end
   end
 
+  # A SIGKILL between writing and renaming leaves runtime.json.<n>.partial
+  # behind; they are ours by construction and never read, so remove them.
+  defp sweep_partials(descriptor) do
+    (descriptor <> ".*.partial") |> Path.wildcard() |> Enum.each(&File.rm/1)
+    :ok
+  end
+
   defp write_descriptor(paths, config) do
     descriptor = %{
       version: 1,
@@ -186,7 +201,7 @@ defmodule Litewave.Listener do
   @impl true
   def handle_info({:EXIT, pid, reason}, %{server: pid} = state) do
     cleanup(state)
-    {:noreply, disabled(state, "listener exited: #{inspect(reason)}")}
+    {:noreply, disabled(state, "listener exited: #{Exception.format_exit(reason)}")}
   end
 
   def handle_info(_message, state), do: {:noreply, state}

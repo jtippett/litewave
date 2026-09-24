@@ -104,17 +104,29 @@ defmodule Litewave.RuntimeTest do
   end
 
   test "app_url detection never loads code" do
-    Code.ensure_loaded!(Litewave.AppURL)
-    before = length(:code.all_loaded())
-    Litewave.AppURL.detect()
-    assert length(:code.all_loaded()) == before
+    # Whether the fixture module is already loaded depends on test order and
+    # on whether this run compiled it; either way detect/0 must not change it.
+    {:ok, agent} = Agent.start_link(fn -> nil end, name: Litewave.TestPhoenixEndpoint)
+    loaded = :erlang.module_loaded(Litewave.TestPhoenixEndpoint)
+    detected = Litewave.AppURL.detect()
+    assert :erlang.module_loaded(Litewave.TestPhoenixEndpoint) == loaded
+    assert detected == if(loaded, do: "http://localhost:4123", else: nil)
+    Agent.stop(agent)
   end
 
-  test "the listener child is controlled by the enabled flag" do
+  test "the listener child is controlled by the enabled flag and a production host starts nothing" do
     children = Supervisor.which_children(Litewave.Supervisor) |> Enum.map(&elem(&1, 0))
     refute Litewave.Listener in children, "test config sets enabled: false"
-    assert Litewave.Application.children(true) |> Enum.member?(Litewave.Listener)
-    refute Litewave.Application.children(false) |> Enum.member?(Litewave.Listener)
+    assert Litewave.Listener in Litewave.Application.children(true, :dev)
+    assert Litewave.Runtime in Litewave.Application.children(false, :test)
+    refute Litewave.Listener in Litewave.Application.children(false, :test)
+    assert Litewave.Application.children(true, :prod) == []
+  end
+
+  test "socket config rejects a production environment" do
+    assert_raise ArgumentError, ~r/development-only/, fn ->
+      Litewave.Config.socket(environment: :prod)
+    end
   end
 
   test "project_id defaults to the project key when not supplied", ctx do

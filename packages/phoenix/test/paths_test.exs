@@ -33,6 +33,8 @@ defmodule Litewave.PathsTest do
     on_exit(fn -> System.delete_env("LITEWAVE_HOME") end)
     assert Paths.home(nil) == "/tmp/lw-x"
     assert Paths.home("relative/dir") == Path.expand("relative/dir")
+    assert Litewave.Paths.home("~/lw-home-test") == Path.join(System.user_home!(), "lw-home-test")
+    assert Litewave.Paths.home("relative-home") == Path.expand("relative-home")
   end
 
   test "socket paths longer than 100 bytes are refused with the documented message" do

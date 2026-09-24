@@ -1,7 +1,6 @@
 defmodule Litewave.SocketPlug do
   @moduledoc false
   @behaviour Plug
-  import Plug.Conn
 
   @impl true
   def init(config), do: config
@@ -20,9 +19,10 @@ defmodule Litewave.SocketPlug do
   end
 
   def call(conn, _config) do
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(404, Jason.encode!(%{error: %{code: "not_found", message: "Unknown path."}}))
-    |> halt()
+    Litewave.Handler.respond(
+      conn,
+      404,
+      Litewave.Runtime.error("not_found", "Unknown path.", false)
+    )
   end
 end

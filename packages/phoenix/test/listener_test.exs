@@ -27,6 +27,7 @@ defmodule Litewave.ListenerTest do
     assert (File.stat!(ctx.paths.socket).mode &&& 0o777) == 0o600
     assert (File.stat!(Path.dirname(ctx.paths.socket)).mode &&& 0o777) == 0o700
     assert (File.stat!(ctx.paths.descriptor).mode &&& 0o777) == 0o600
+    assert (File.stat!(Path.dirname(ctx.paths.descriptor)).mode &&& 0o777) == 0o700
 
     descriptor = ctx.paths.descriptor |> File.read!() |> Jason.decode!()
     assert descriptor["version"] == 1
@@ -149,5 +150,66 @@ defmodule Litewave.ListenerTest do
 
     assert log =~ "Litewave runtime socket is unavailable"
     assert File.read!(ctx.paths.socket) == "not a socket"
+  end
+
+  test "unknown paths get the JSON error envelope with no-store", ctx do
+    start(ctx)
+    response = Req.get!("http://localhost/other", unix_socket: ctx.paths.socket, retry: false)
+    assert response.status == 404
+    assert Req.Response.get_header(response, "cache-control") == ["no-store"]
+    assert %{"error" => %{"code" => "not_found", "dispatch_occurred" => false}} = response.body
+  end
+
+  test "sweeps abandoned partial descriptors before publishing", ctx do
+    directory = Path.dirname(ctx.paths.descriptor)
+    File.mkdir_p!(directory)
+    partial = ctx.paths.descriptor <> ".123.partial"
+    File.write!(partial, "{")
+    start(ctx)
+    refute File.exists?(partial)
+    assert File.exists?(ctx.paths.descriptor)
+  end
+
+  test "reports disabled and removes its files when the bound server exits", ctx do
+    listener = start(ctx)
+    %{server: server} = :sys.get_state(listener)
+
+    log =
+      capture_log(fn ->
+        Process.exit(server, :kill)
+        eventually(fn -> Listener.info(listener).status == :disabled end)
+      end)
+
+    assert %{status: :disabled, reason: "listener exited: killed"} = Listener.info(listener)
+    refute File.exists?(ctx.paths.socket)
+    refute File.exists?(ctx.paths.descriptor)
+    assert log =~ "listener exited"
+  end
+
+  # A live conflicting socket is the one start failure that is provable
+  # without racing the filesystem; the code change below extends the same
+  # guarantee to exceptions raised after the paths are derived.
+  test "info names the paths it derived even when starting fails", ctx do
+    start(ctx)
+    {second, _log} = with_log(fn -> start(ctx, id: :second) end)
+    info = Listener.info(second)
+    assert info.status == :disabled
+    assert info.reason =~ "another runtime already serves"
+    assert info.socket == ctx.paths.socket
+    assert info.descriptor == ctx.paths.descriptor
+  end
+
+  defp eventually(fun, attempts \\ 100) do
+    cond do
+      fun.() ->
+        :ok
+
+      attempts > 0 ->
+        Process.sleep(20)
+        eventually(fun, attempts - 1)
+
+      true ->
+        flunk("condition not met within 2 s")
+    end
   end
 end
