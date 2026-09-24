@@ -16,7 +16,7 @@ import { callPhoenix, setupPhoenix, type PhoenixTool } from "./phoenix.js";
 
 const HELP = `Litewave — local browser access (alpha)
 
-  litewave init --project PATH --app URL [--upload-root PATH ...]
+  litewave init --project PATH [--app URL] [--upload-root PATH ...]
   litewave browser open --project PATH [--headless] [--fresh-profile [--storage-state PATH]]
   litewave status --project PATH
   litewave doctor --project PATH
@@ -38,7 +38,11 @@ launches Chromium. Closing a CLI/MCP connection leaves the browser running.
 --fresh-profile explicitly creates a separate browser profile and keeps the old one.
 Sign in again, or import an explicitly supplied Playwright storage-state file with
 --storage-state PATH. Treat that file as a password; it contains authentication.
-Use --help for this text. See README.md for installation and action examples.`;
+Use --help for this text. See README.md for installation and action examples.
+
+--app may be omitted when the project's Phoenix app is running with the
+litewave_phoenix dependency; init then reads the app URL from the runtime.
+Runtime commands (mcp, phoenix status, phoenix call) need no registration.`;
 async function main() {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
@@ -60,10 +64,24 @@ async function main() {
   }
   const project = values.project ?? process.cwd();
   const command = positionals.join(" ");
+  const optionalRegistration = () =>
+    registration(project).catch((error: unknown) => {
+      if (error instanceof AccessError && error.code === "not_registered")
+        return null;
+      throw error;
+    });
   if (command === "init") {
-    if (!values.app)
-      throw new AccessError("invalid_request", "--app URL is required.");
-    const r = await register(project, values.app, values["upload-root"]);
+    let app = values.app;
+    if (!app) {
+      const health = await callPhoenix(project, "phoenix_health");
+      if (typeof health.app_url === "string") app = health.app_url;
+    }
+    if (!app)
+      throw new AccessError(
+        "invalid_request",
+        "--app URL is required: no Litewave runtime reported an application URL for this project.",
+      );
+    const r = await register(project, app, values["upload-root"]);
     console.log(
       JSON.stringify(
         {
@@ -90,16 +108,15 @@ async function main() {
     );
     return;
   }
-  const r = await registration(project);
   if (command.startsWith("phoenix ")) {
     const result =
       command === "phoenix setup"
-        ? await setupPhoenix(r)
+        ? await setupPhoenix(await registration(project))
         : command === "phoenix status"
-          ? await callPhoenix(r.project, "phoenix_health")
+          ? await callPhoenix(project, "phoenix_health")
           : command === "phoenix call"
             ? await callPhoenix(
-                r.project,
+                project,
                 values.tool as PhoenixTool,
                 JSON.parse(values.json ?? "{}"),
               )
@@ -114,9 +131,10 @@ async function main() {
     return;
   }
   if (command === "mcp") {
-    await mcp(r);
+    await mcp({ project, registration: await optionalRegistration() });
     return;
   }
+  const r = await registration(project);
   const result =
     command === "browser open"
       ? await openBrowser(r, values.headless, {
