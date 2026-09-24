@@ -71,6 +71,11 @@ defmodule Litewave.RuntimeTest do
     assert Litewave.AppURL.detect() == nil
     assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == nil
 
+    # A running endpoint has loaded its own module; the fixtures are only
+    # registered names, so load them the way starting an endpoint would.
+    Code.ensure_loaded!(Litewave.TestThrowingEndpoint)
+    Code.ensure_loaded!(Litewave.TestPhoenixEndpoint)
+
     {:ok, thrower} = Agent.start_link(fn -> nil end, name: Litewave.TestThrowingEndpoint)
     assert Litewave.AppURL.detect() == nil
     Agent.stop(thrower)
@@ -80,6 +85,13 @@ defmodule Litewave.RuntimeTest do
     assert Jason.decode!(request(ctx, :get).resp_body)["app_url"] == "http://localhost:4123"
     Agent.stop(agent)
     assert Litewave.AppURL.detect() == nil
+  end
+
+  test "app_url detection never loads code" do
+    Code.ensure_loaded!(Litewave.AppURL)
+    before = length(:code.all_loaded())
+    Litewave.AppURL.detect()
+    assert length(:code.all_loaded()) == before
   end
 
   test "the listener child is controlled by the enabled flag" do
