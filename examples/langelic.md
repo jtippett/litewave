@@ -7,12 +7,12 @@ Langelic, a Phoenix LiveView application that converts PDFs to EPUBs, was Litewa
 With the application already running on its own port:
 
 ```sh
-litewave init --project /path/to/langelic --upload-root /path/to/test-pdfs
+litewave init --project /path/to/langelic --app http://localhost:4000 --upload-root /path/to/test-pdfs
 litewave browser open --project /path/to/langelic
 litewave doctor --project /path/to/langelic
 ```
 
-Use a real fixture directory for `--upload-root`; uploads are limited to it. Register each worktree separately: identity is the canonical project directory, so a worktree on another port gets its own registration, profile, and runtime socket.
+`--app` may be omitted once the runtime tools below are installed and the application is running; `init` then reads the URL from the runtime. Use a real fixture directory for `--upload-root`; uploads are limited to it. Register each worktree separately: identity is the canonical project directory, so a worktree on another port gets its own registration, profile, and runtime socket.
 
 Sign into the application normally in the dedicated Chromium profile. No change to its dependencies, endpoint, database, or existing tooling is needed for browser access.
 
@@ -31,7 +31,7 @@ The application enables evaluation and SQL in `config/dev.exs` after explicit ow
 config :litewave_phoenix, allow_eval: true, allow_sql: true, repos: [Langelic.Repo]
 ```
 
-`allow_eval` executes arbitrary Elixir in the app and `allow_sql` runs read-write SQL; both default to off.
+`allow_eval: true` executes arbitrary Elixir in your application; it is not a sandbox. `allow_sql` runs read-write SQL. Both default to off.
 
 ## An acceptance workflow
 

@@ -23,7 +23,7 @@ npm install -g litewave
 litewave browser install
 ```
 
-`browser install` downloads the pinned Chromium build once. Nothing is installed automatically. Prefer not to install globally? Prefix every command below with `npx litewave` instead.
+`browser install` downloads the pinned Chromium build once. Nothing is installed automatically. Prefer not to install globally? Prefix every command below with `npx litewave` instead. For MCP use, install globally (or as a project devDependency) so the command path `init` prints stays stable; an npx cache path is temporary.
 
 ### Phoenix runtime tools
 

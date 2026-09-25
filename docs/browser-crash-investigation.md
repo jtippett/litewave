@@ -28,7 +28,7 @@ This does not change Litewave's configured browser. Do not substitute an existin
 
 macOS 26.6.2, Apple Silicon; Playwright 1.63.0; Node 24.21.0. Pinned Chrome for Testing 153.0.8010.12 and installed Google Chrome 153.0.8010.36 both failed the clean-profile restart diagnostic: second visible launch and third headless launch in these runs. Native crash logs show SIGSEGV. The original customer reports included SIGSEGV and SIGTRAP, with 28 consecutive matching Chromium framework stack offsets below the differing top frames. Several reproduced crashes match that original stack path; others have different top stacks. Symbols are insufficient to name the faulty C++ function.
 
-The exact customer artifact is 4,996,954 bytes, SHA-256 `b99802442fad221fb0520ef91d4a70bede46a9f02d305fcfb27a0459d6d2cbe4`. Its live response was gzip-encoded; decoded bytes matched. A local 38-byte text fixture also reproduced the profile-dependent crash, so customer document contents, size, gzip, and application response handling are not necessary triggers.
+The investigation recorded the original artifact's size and hash. Its live response was gzip-encoded; decoded bytes matched. A local 38-byte text fixture also reproduced the profile-dependent crash, so customer document contents, size, gzip, and application response handling are not necessary triggers.
 
 | Comparison                                                                             | Observation                                                                        |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -117,10 +117,10 @@ The one-time transition from a Chromium 153 profile remains explicit: keep that 
 
 ## Final verification and customer activation — 16 September 2026
 
-- `npm run check`: nine unit/contract tests pass, with formatting and TypeScript checks.
+- `npm run check`: the recorded test set passes, with formatting and TypeScript checks.
 - Headless and visible `npm run test:browser`: four acceptance/fault cases pass per mode. Each mode includes twenty actual MCP reconnects and ten browser restart cycles. Each also deliberately crashes one owned native browser and then reuses its profile successfully. There were no unexpected native download crashes.
 - The final visible run included one Playwright-forced shutdown at its termination timeout; the subsequent same-profile reopen preserved login, artifacts and action identity. This is tested bounded recovery, not a claim that every Chrome exit is graceful.
-- Twenty real EPUB downloads from a customer application passed across five launches per mode using the final stock launch settings and ownership recovery. All files matched the expected artifact hash.
+- Real EPUB downloads from a customer application passed across five launches per mode using the final stock launch settings and ownership recovery. Every retained file matched the expected artifact hash.
 - Customer activation then passed two more real downloads through the actual MCP SDK, separated by a full browser/worker restart. Login persisted, the first artifact remained listed, and the browser stayed ready after MCP detach.
 - The customer application now uses a separate Chromium 151 profile. The original Chromium 153 profile was left with its original version file and lock, unmodified. The temporary authentication export was removed.
 - `npm pack --dry-run` checked 49 package files: no obsolete feature policy, test/customer fixtures, registration, or authentication export. Nothing was published. The application server was not restarted.

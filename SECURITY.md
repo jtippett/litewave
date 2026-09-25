@@ -4,13 +4,13 @@ Litewave grants substantial control over a local browser and, with the Phoenix p
 
 ## Boundaries
 
-**Same user, same machine.** State lives under `~/.litewave` (or `LITEWAVE_HOME`) with owner-only permissions. A process running as the same OS user can read it; Litewave is not a sandbox against that user. Native peer-credential checks are not implemented.
+**Same user, same machine.** State lives under `~/.litewave` (or `LITEWAVE_HOME`) with owner-only permissions. `LITEWAVE_HOME` must be the same absolute path for the application and every CLI/MCP client; both sides expand a relative or `~` value against their own working directory or home directory. A process running as the same OS user can read it; Litewave is not a sandbox against that user. Native peer-credential checks are not implemented.
 
 **Browser worker.** The CLI and MCP bridge reach the browser worker over a user-owned Unix socket with a registration secret that is passed only over that socket, never in command arguments or MCP output. Agent navigation is restricted to the registered origins. This is not a network firewall: subresources can contact other hosts and a person can navigate manually. Cookies are never copied from an everyday browser. Page evaluation is not exposed.
 
 **Phoenix runtime, socket transport (default).** At boot in `:dev` the app publishes `runtime.json` and a Unix socket under `LITEWAVE_HOME`. Identity is the project key, the SHA-256 of the canonical project path. Every directory from the home down is created `0700` and must be owned by the current user; the socket is `0600`. The Node bridge checks the run directory and socket ownership before connecting. No token is used: a filesystem socket is unreachable from a web page, so the Host/Origin/token checks of the HTTP transport are unnecessary. Only a socket that refuses connections is ever replaced; a live one is reported, never removed.
 
-**Phoenix runtime, HTTP transport (alternative).** The `Litewave` Plug accepts only loopback peers with the exact configured Host, an absent or exact Origin, and a Bearer token read from a private (`0600`, owned) file. It refuses production configuration at startup and never follows redirects.
+**Phoenix runtime, HTTP transport (alternative).** The `Litewave` Plug accepts only loopback peers with the exact configured Host, an absent or exact Origin, and a Bearer token read from a private (`0600`, owned) file. It refuses production configuration at startup. The Plug serves requests and never issues them; the Node client refuses redirects from the runtime, so any 3xx response is a `permission_denied`.
 
 **Execution.** `project_eval` runs arbitrary Elixir in the application. `execute_sql_query` runs **read-write** SQL through the configured Ecto repositories. Both are off by default and, when enabled, grant write-capable access to whoever can reach the socket. Execution history is in memory and is not an audit log.
 

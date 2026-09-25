@@ -28,7 +28,8 @@ Initial public release candidate.
   reached over a private Unix domain socket the `litewave_phoenix` dependency
   publishes at boot; the bridge finds it from the project directory alone.
 - Fallback to the authenticated HTTP Plug transport when a stale runtime
-  descriptor's socket refuses before anything was sent.
+  descriptor's socket fails before anything was sent (refused, missing, or not a
+  socket).
 - `litewave init` reads the application URL from a running runtime when
   `--app` is omitted.
 - `litewave mcp`, `litewave phoenix status`, and `litewave phoenix call` work
