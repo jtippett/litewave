@@ -77,7 +77,8 @@ All options, defaults, and bounds are documented in `Litewave.Config`. Summary:
 - `max_output_bytes`: default 64,000; 1,024 to 256,000.
 - `max_rows`: SQL rows returned, default 50, at most 500.
 - `project`: canonical project directory; defaults to the running Mix project.
-- Plug only: `endpoint`, `token_file`, `project_id` (defaults to the project key), `environment`, or `registration:` to read the CLI's files.
+- `environment`: Plug argument, or application environment for the socket transport; defaults to the host `Mix.env()`. Must be `:dev` or `:test`.
+- Plug only: `endpoint`, `token_file`, `project_id` (defaults to the project key), or `registration:` to read the CLI's files.
 
 ## Files
 

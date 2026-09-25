@@ -10,7 +10,8 @@ Initial public release candidate.
 ### Added
 
 - Boot-time runtime publication on a private Unix domain socket under
-  `LITEWAVE_HOME` (`Litewave.Listener`), with owner-only directories, a
+  `LITEWAVE_HOME` (`Litewave.Listener`; it must be the same absolute path for
+  the application and every client), with owner-only directories, a
   `0600` socket, an atomically written `runtime.json` descriptor, and
   never-crash-the-host failure handling. Disable with
   `config :litewave_phoenix, enabled: false`.
@@ -25,6 +26,8 @@ Initial public release candidate.
   Phoenix endpoint process is running.
 - Bandit as a runtime dependency for the socket server.
 - ex_doc documentation, credo, and dialyzer in the `precommit` gate.
+- A production host (`MIX_ENV=prod`, or no Mix project) starts no Litewave
+  runtime children, so a release can never publish a socket.
 
 ### Changed
 

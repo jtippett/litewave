@@ -7,6 +7,9 @@ defmodule Litewave.Paths do
   * socket: `<home>/run/p<first 16 of key>.sock`
   * descriptor: `<home>/projects/<key>/runtime.json`
 
+  `LITEWAVE_HOME` must be the same absolute path for the application and
+  every CLI/MCP client of a project.
+
   macOS limits socket paths to about 100 bytes; `check_length/1` enforces it.
   """
   import Bitwise

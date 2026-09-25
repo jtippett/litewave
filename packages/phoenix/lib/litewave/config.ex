@@ -6,22 +6,22 @@ defmodule Litewave.Config do
   `config :litewave_phoenix` in `config/dev.exs`. The socket transport
   started at boot reads only the application environment.
 
-  | Option             | Default                                  | Meaning                                                                                  |
-  | ------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-  | `:enabled`         | `true`                                   | Publish the boot-time socket. Application environment only.                              |
-  | `:allow_eval`      | `false`                                  | Allow `project_eval`. Executes arbitrary Elixir in the app; not a sandbox.               |
-  | `:allow_sql`       | `false`                                  | Allow `execute_sql_query`. SQL is **read-write**.                                        |
-  | `:repos`           | `:ecto_repos` of loaded applications     | Repositories SQL may target.                                                             |
-  | `:roots`           | Mix dependency paths plus the project    | Directories `get_source_location` may reveal.                                            |
-  | `:timeout`         | `10_000`                                 | Execution timeout in ms, at most `30_000`.                                               |
-  | `:max_output_bytes`| `64_000`                                 | Bound on captured output, `1_024..256_000`.                                              |
-  | `:max_rows`        | `50`                                     | SQL rows returned, at most `500`.                                                        |
-  | `:project`         | the Mix project directory                | Canonical project path. Socket transport: application environment or default.           |
-  | `:environment`     | the host `Mix.env()`                     | Must be `:dev` or `:test`. Plug argument, or application environment for the socket transport; defaults to the host `Mix.env()`. |
-  | `:project_id`      | `Litewave.Paths.key(project)`            | Plug argument only; the default is what the CLI expects.                                 |
-  | `:endpoint`        | required for the Plug                    | Loopback origin the Plug is served on, e.g. `"http://localhost:4000"`.                   |
-  | `:token_file`      | required for the Plug                    | Private file created by `litewave phoenix setup`.                                        |
-  | `:registration`    | —                                        | Plug only: resolve `project`, `endpoint`, `token_file` from the CLI's files for this path.|
+  | Option              | Default                               | Meaning                                                                                        |
+  | ------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
+  | `:enabled`          | `true`                                | Publish the boot-time socket. Application environment only.                                    |
+  | `:allow_eval`       | `false`                               | Allow `project_eval`. Executes arbitrary Elixir in the app; not a sandbox.                     |
+  | `:allow_sql`        | `false`                               | Allow `execute_sql_query`. SQL is **read-write**.                                              |
+  | `:repos`            | `:ecto_repos` of loaded applications  | Repositories SQL may target.                                                                   |
+  | `:roots`            | Mix dependency paths plus the project | Directories `get_source_location` may reveal.                                                  |
+  | `:timeout`          | `10_000`                              | Execution timeout in ms, at most `30_000`.                                                     |
+  | `:max_output_bytes` | `64_000`                              | Bound on captured output, `1_024..256_000`.                                                    |
+  | `:max_rows`         | `50`                                  | SQL rows returned, at most `500`.                                                              |
+  | `:project`          | the Mix project directory             | Canonical project path. Socket transport: application environment or default.                  |
+  | `:environment`      | the host `Mix.env()`                  | Must be `:dev` or `:test`. Plug argument, or application environment for the socket transport. |
+  | `:project_id`       | `Litewave.Paths.key(project)`         | Plug argument only; the default is what the CLI expects.                                       |
+  | `:endpoint`         | required for the Plug                 | Loopback origin the Plug is served on, e.g. `"http://localhost:4000"`.                         |
+  | `:token_file`       | required for the Plug                 | Private file created by `litewave phoenix setup`.                                              |
+  | `:registration`     | —                                     | Plug only: resolve `project`, `endpoint`, `token_file` from the CLI's files for this path.     |
 
   Every option is validated at boot or when the `Litewave` Plug initializes;
   an invalid value raises `ArgumentError` so a misconfiguration is visible

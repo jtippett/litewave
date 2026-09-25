@@ -191,9 +191,10 @@ defmodule Litewave.ListenerTest do
     assert log =~ "listener exited"
   end
 
-  # A live conflicting socket is the one start failure that is provable
-  # without racing the filesystem; the code change below extends the same
-  # guarantee to exceptions raised after the paths are derived.
+  # A failed start still reports, through info/1, the socket and descriptor
+  # paths it derived. A live conflicting socket is the one start failure that
+  # is provable without racing the filesystem; the listener gives the same
+  # guarantee for exceptions raised after the paths are derived.
   test "info names the paths it derived even when starting fails", ctx do
     start(ctx)
     {second, _log} = with_log(fn -> start(ctx, id: :second) end)

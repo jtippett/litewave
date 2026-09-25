@@ -2,6 +2,8 @@ defmodule Litewave.Source do
   @moduledoc false
   alias Litewave.Introspection
 
+  @core_apps [:elixir, :iex, :logger, :eex, :ex_unit, :mix, :kernel, :stdlib]
+
   def docs(reference, config) do
     parsed_reference = String.replace_prefix(reference, "c:", "")
 
@@ -39,8 +41,6 @@ defmodule Litewave.Source do
       _ -> {:error, "source_not_found", "Source is unavailable or outside allowed roots."}
     end
   end
-
-  @core_apps [:elixir, :iex, :logger, :eex, :ex_unit, :mix, :kernel, :stdlib]
 
   defp allowed_module(module, config) do
     with {:module, _} <- Code.ensure_loaded(module),

@@ -1,5 +1,6 @@
 import Config
 
+# credo strict requires every metadata key the package logs with to be declared here; the key itself only filters runtime-originated events in Litewave.Logs.
 config :logger, :default_formatter, metadata: [:litewave_runtime]
 
 if config_env() == :test do

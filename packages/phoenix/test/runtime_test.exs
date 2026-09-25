@@ -1,8 +1,12 @@
 defmodule Litewave.RuntimeTest do
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
   import Plug.Test
   import Plug.Conn
   alias Litewave.Runtime
+
+  # Mirrors the private @max_running in Litewave.Runtime.
+  @max_running 8
 
   setup do
     directory =
@@ -246,7 +250,12 @@ defmodule Litewave.RuntimeTest do
 
   test "exceptions and timeouts leave the runtime healthy and expose uncertainty", ctx do
     id = Runtime.identity()
-    failed = tool(ctx, "project_eval", %{code: "raise \"expected fixture exception\""})
+
+    {failed, _log} =
+      with_log(fn ->
+        tool(ctx, "project_eval", %{code: "raise \"expected fixture exception\""})
+      end)
+
     assert failed["status"] == "outcome_unknown"
     assert failed["result"]["exception"] =~ "expected fixture exception"
     timeout = tool(ctx, "project_eval", %{code: "Process.sleep(500)", timeout: 10})
@@ -289,6 +298,38 @@ defmodule Litewave.RuntimeTest do
            ] == "runtime_changed"
 
     assert Application.get_env(:litewave_phoenix, :execution_counter) == 1
+  end
+
+  test "runtime identity is checked before a known request ID is replayed", ctx do
+    request_id = unique()
+    assert tool(ctx, "project_eval", %{request_id: request_id, code: "1 + 1"})["status"] == "ok"
+
+    replay =
+      tool(ctx, "project_eval", %{
+        request_id: request_id,
+        code: "1 + 1",
+        runtime_id: "old-runtime"
+      })
+
+    assert replay["error"]["code"] == "runtime_changed"
+  end
+
+  test "a full runtime still replays an in-flight request ID and refuses a fresh one", ctx do
+    ids = for _ <- 1..@max_running, do: unique()
+    # The executions outlive a failed assertion; later tests need an idle runtime.
+    on_exit(fn -> wait_for_runtime(ctx, ids, false) end)
+    sleeping = fn id -> %{request_id: id, code: "Process.sleep(2_000)"} end
+
+    tasks =
+      Enum.map(ids, fn id -> Task.async(fn -> tool(ctx, "project_eval", sleeping.(id)) end) end)
+
+    wait_for_runtime(ctx, ids, true)
+
+    assert %{"status" => "running", "result" => nil, "error" => nil} =
+             tool(ctx, "project_eval", sleeping.(hd(ids)))
+
+    assert tool(ctx, "project_eval", sleeping.(unique()))["error"]["code"] == "runtime_busy"
+    assert Enum.all?(Task.await_many(tasks, 10_000), &(&1["status"] == "ok"))
   end
 
   test "log capture provides filtering, continuation, and overflow gaps", ctx do
@@ -366,8 +407,12 @@ defmodule Litewave.RuntimeTest do
 
   test "real logger events enter the buffer and a reset cursor reports a gap", ctx do
     require Logger
-    Logger.warning("litewave-real-logger-fixture")
-    Logger.flush()
+
+    capture_log(fn ->
+      Logger.warning("litewave-real-logger-fixture")
+      Logger.flush()
+    end)
+
     result = tool(ctx, "get_logs", %{grep: "litewave-real-logger-fixture"})
 
     assert Enum.any?(
@@ -379,6 +424,25 @@ defmodule Litewave.RuntimeTest do
     assert reset["result"]["gap"]
     assert reset["result"]["reset"]
     assert request(%{ctx | config: %{ctx.config | owner_uid: -1}}, :get).status == 403
+  end
+
+  # Polls until every ID is (running? true) or none is (running? false) in flight.
+  defp wait_for_runtime(ctx, ids, running?, attempts \\ 500) do
+    in_flight? = fn id ->
+      Runtime.status(ctx.config.project_id, id) == %{status: "running", result: nil, error: nil}
+    end
+
+    cond do
+      Enum.all?(ids, &(in_flight?.(&1) == running?)) ->
+        :ok
+
+      attempts == 0 ->
+        flunk("runtime executions did not reach the expected state")
+
+      true ->
+        Process.sleep(10)
+        wait_for_runtime(ctx, ids, running?, attempts - 1)
+    end
   end
 
   defp tool(ctx, method, args) do
