@@ -1,9 +1,34 @@
 defmodule Litewave.Listener do
-  @moduledoc false
+  @moduledoc """
+  Publishes the runtime tools on a private Unix domain socket at boot.
+
+  Started by the application supervisor in `:dev` and `:test` when
+  `config :litewave_phoenix, enabled: true` (the default). On start it:
+
+  1. secures `$LITEWAVE_HOME`, `projects/`, `run/`, and the project directory
+     as owner-only (`0700`), refusing directories owned by another user;
+  2. removes a stale socket only if connecting to it is refused;
+  3. binds Bandit to `run/p<key16>.sock` and sets the socket to `0600`;
+  4. writes `projects/<key>/runtime.json` atomically.
+
+  Any failure leaves the host application running: the listener logs one
+  warning and reports `status: :disabled` from `info/1`. It does not retry;
+  restart the application after fixing the cause. Stopping the application
+  removes the socket and descriptor.
+
+  `LITEWAVE_HOME` must be the same absolute path for the application and for
+  every CLI/MCP client of the project; a symlinked home is refused.
+  """
   use GenServer
   require Logger
   alias Litewave.Paths
 
+  @doc """
+  Starts the listener. Options: `:config` (a `Litewave.Config.t()`, default
+  `Litewave.Config.socket/1`), `:home` (overrides `LITEWAVE_HOME`), `:name`
+  (`nil` for an unnamed process; default `Litewave.Listener`).
+  """
+  @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     case Keyword.get(opts, :name, __MODULE__) do
       nil -> GenServer.start_link(__MODULE__, opts)
@@ -11,6 +36,17 @@ defmodule Litewave.Listener do
     end
   end
 
+  @doc """
+  Current state: `%{status: :listening | :disabled, socket: path | nil,
+  descriptor: path | nil, reason: String.t() | nil}`. Useful in IEx when the
+  CLI reports that no runtime is published.
+  """
+  @spec info(GenServer.server()) :: %{
+          status: :listening | :disabled,
+          socket: Path.t() | nil,
+          descriptor: Path.t() | nil,
+          reason: String.t() | nil
+        }
   def info(server \\ __MODULE__), do: GenServer.call(server, :info)
 
   @impl true

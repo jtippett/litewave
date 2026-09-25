@@ -1,7 +1,58 @@
 defmodule Litewave.Config do
-  @moduledoc false
+  @moduledoc """
+  Runtime configuration for both transports.
+
+  Options may be given as arguments to the `Litewave` Plug or under
+  `config :litewave_phoenix` in `config/dev.exs`. The socket transport
+  started at boot reads only the application environment.
+
+  | Option             | Default                                  | Meaning                                                                                  |
+  | ------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+  | `:enabled`         | `true`                                   | Publish the boot-time socket. Application environment only.                              |
+  | `:allow_eval`      | `false`                                  | Allow `project_eval`. Executes arbitrary Elixir in the app; not a sandbox.               |
+  | `:allow_sql`       | `false`                                  | Allow `execute_sql_query`. SQL is **read-write**.                                        |
+  | `:repos`           | `:ecto_repos` of loaded applications     | Repositories SQL may target.                                                             |
+  | `:roots`           | Mix dependency paths plus the project    | Directories `get_source_location` may reveal.                                            |
+  | `:timeout`         | `10_000`                                 | Execution timeout in ms, at most `30_000`.                                               |
+  | `:max_output_bytes`| `64_000`                                 | Bound on captured output, `1_024..256_000`.                                              |
+  | `:max_rows`        | `50`                                     | SQL rows returned, at most `500`.                                                        |
+  | `:project`         | the Mix project directory                | Canonical project path. Socket transport: application environment or default.           |
+  | `:environment`     | the host `Mix.env()`                     | Must be `:dev` or `:test`. Plug argument only.                                           |
+  | `:project_id`      | `Litewave.Paths.key(project)`            | Plug argument only; the default is what the CLI expects.                                 |
+  | `:endpoint`        | required for the Plug                    | Loopback origin the Plug is served on, e.g. `"http://localhost:4000"`.                   |
+  | `:token_file`      | required for the Plug                    | Private file created by `litewave phoenix setup`.                                        |
+  | `:registration`    | —                                        | Plug only: resolve `project`, `endpoint`, `token_file` from the CLI's files for this path.|
+
+  Every option is validated at boot or when the `Litewave` Plug initializes;
+  an invalid value raises `ArgumentError` so a misconfiguration is visible
+  immediately.
+  """
   import Bitwise
 
+  @typedoc "Validated configuration shared by the socket listener and the Plug."
+  @type t :: %{
+          project: String.t(),
+          project_id: String.t(),
+          owner_uid: non_neg_integer(),
+          environment: :dev | :test,
+          roots: [String.t()],
+          repos: [module()],
+          allow_eval: boolean(),
+          allow_sql: boolean(),
+          max_output_bytes: pos_integer(),
+          max_rows: pos_integer(),
+          timeout: pos_integer(),
+          transport: :socket | :endpoint,
+          endpoint: URI.t() | nil,
+          token_file: String.t() | nil
+        }
+
+  @doc """
+  The Mix environment of the *host* application, or `:prod` when no Mix
+  project is running (releases). Dependencies compile under `:prod` even in a
+  development host, so `Mix.env/0` of this package is never consulted.
+  """
+  @spec environment() :: atom()
   # Dependencies normally compile under :prod, even in a development host.
   # Require a running Mix project; releases must never enable runtime access.
   def environment do
@@ -17,6 +68,13 @@ defmodule Litewave.Config do
   # environment.
   @env_options_without_project @env_options -- [:project, :environment]
 
+  @doc """
+  Builds the Plug configuration (transport `:endpoint`) from Plug arguments
+  merged over `:litewave_phoenix` application environment. See the module
+  documentation for the options. Raises `ArgumentError` on invalid or
+  production configuration.
+  """
+  @spec new(keyword()) :: t()
   # Plug arguments override application environment.
   def new(opts) when is_list(opts) do
     from_env =
@@ -28,6 +86,13 @@ defmodule Litewave.Config do
     end
   end
 
+  @doc """
+  Builds the boot-time socket configuration (transport `:socket`) from
+  application environment merged under `opts`. The project defaults to the
+  directory of the running Mix project, canonicalised. Raises
+  `ArgumentError` on invalid or production configuration.
+  """
+  @spec socket(keyword()) :: t()
   def socket(opts \\ []) when is_list(opts) do
     from_env = :litewave_phoenix |> Application.get_all_env() |> Keyword.take(@env_options)
     opts = Keyword.merge(from_env, opts)
@@ -121,6 +186,8 @@ defmodule Litewave.Config do
     end
   end
 
+  @doc false
+  @spec token(Path.t(), non_neg_integer()) :: {:ok, String.t()} | {:error, :invalid_token_file}
   def token(file, owner_uid) do
     with {:ok, %{type: :regular, mode: mode, uid: ^owner_uid}} when (mode &&& 0o077) == 0 <-
            File.lstat(file),
@@ -138,6 +205,8 @@ defmodule Litewave.Config do
     if is_boolean(value), do: value, else: raise(ArgumentError, "#{key} must be a boolean")
   end
 
+  @doc false
+  @spec current_uid() :: non_neg_integer()
   def current_uid do
     {uid, 0} = System.cmd("id", ["-u"])
     uid |> String.trim() |> String.to_integer()
