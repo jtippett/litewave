@@ -23,7 +23,7 @@ export async function selectProfile(
   if (driverVersion !== "1.62.0")
     throw new AccessError(
       "browser_version_mismatch",
-      "The installed Playwright driver differs from Litewave's qualified pin. Run npm ci before opening a browser.",
+      "The installed Playwright driver differs from Litewave's qualified pin. Reinstall litewave (contributors working from a checkout: run npm ci), then open the browser again.",
       "doctor",
     );
   if (options.storageState && !options.freshProfile)

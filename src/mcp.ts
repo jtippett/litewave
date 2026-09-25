@@ -4,11 +4,12 @@ import { AccessError, failure, operationSchema } from "./protocol.js";
 import { rpc } from "./transport.js";
 import type { Registration } from "./storage.js";
 import { callPhoenix, phoenixTools, type PhoenixTool } from "./phoenix.js";
+import { packageVersion } from "./version.js";
 
 export type McpContext = { project: string; registration: Registration | null };
 
 export async function mcp({ project, registration }: McpContext) {
-  const server = new McpServer({ name: "litewave", version: "0.1.0" });
+  const server = new McpServer({ name: "litewave", version: packageVersion });
   server.registerTool(
     "browser",
     {

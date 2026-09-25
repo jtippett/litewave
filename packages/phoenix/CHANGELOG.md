@@ -5,7 +5,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-Initial public release candidate.
+## [0.1.0] - 2026-09-25
+
+Initial public release.
 
 ### Added
 
@@ -37,3 +39,6 @@ Initial public release candidate.
 - The endpoint Plug is the alternative transport; the socket is the default.
 - The Plug refuses `production` at `init/1` and reads the host Mix
   environment, not the dependency's compile environment.
+
+[Unreleased]: https://github.com/jtippett/litewave/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jtippett/litewave/releases/tag/v0.1.0

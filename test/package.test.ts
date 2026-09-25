@@ -12,6 +12,7 @@ const pkg = JSON.parse(
   await readFile(new URL("../../package.json", import.meta.url), "utf8"),
 ) as {
   name: string;
+  version: string;
   private?: boolean;
   repository: { url: string };
   homepage: string;
@@ -22,7 +23,7 @@ const pkg = JSON.parse(
   files: string[];
 };
 
-test("package metadata is publishable", () => {
+test("package metadata is publishable", async () => {
   assert.equal(pkg.name, "litewave");
   assert.equal(pkg.private, undefined);
   assert.equal(
@@ -40,6 +41,16 @@ test("package metadata is publishable", () => {
     "Chromium is installed only explicitly",
   );
   assert.equal(pkg.scripts.lint, "oxlint src test");
+  const mixExs = await readFile(
+    new URL("../../packages/phoenix/mix.exs", import.meta.url),
+    "utf8",
+  );
+  const mixVersion = /@version "([^"]+)"/.exec(mixExs)?.[1];
+  assert.equal(
+    mixVersion,
+    pkg.version,
+    "package.json and mix.exs must carry the same version",
+  );
 });
 
 test("npm pack ships the CLI, notices, and architecture doc and nothing private", async () => {
@@ -69,9 +80,15 @@ test("npm pack ships the CLI, notices, and architecture doc and nothing private"
     "local-feedback/",
     "docs/status.md",
     ".oxlintrc.json",
+    "scripts/",
+    ".github/",
   ])
     assert.ok(
       files.every((f) => !f.startsWith(forbidden)),
       `${forbidden} must not be in the tarball`,
     );
+  assert.ok(
+    files.every((f) => !f.endsWith(".map")),
+    "source maps are not shipped; they would point at absent src/ files",
+  );
 });

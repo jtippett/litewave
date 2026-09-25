@@ -1,6 +1,6 @@
 {
   "name": "litewave",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "Local browser access and Phoenix runtime tools for coding agents: a persistent Chromium driven through a CLI or MCP server, with honest action outcomes.",
   "keywords": [
     "mcp",
@@ -37,6 +37,7 @@
   },
   "files": [
     "dist/src",
+    "!dist/src/**/*.map",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

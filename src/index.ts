@@ -25,3 +25,4 @@ export { projectKey, runtimeSocketPath, projectDirectory } from "./storage.js";
 export type { RuntimeDescriptor } from "./storage.js";
 
 export type { BrowserOpenOptions } from "./profile.js";
+export { packageVersion } from "./version.js";

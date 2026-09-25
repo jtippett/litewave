@@ -6,7 +6,9 @@ Phoenix package has [its own changelog](packages/phoenix/CHANGELOG.md).
 
 ## [Unreleased]
 
-Initial public release candidate.
+## [0.1.0] - 2026-09-25
+
+Initial public release.
 
 ### Added
 
@@ -49,3 +51,6 @@ Initial public release candidate.
 - Playwright 1.62.0 / Chromium 151.0.7922.34 pinned to avoid a reproduced
   Chromium 153/154 crash on restart with retained downloads.
 - Node `>=24.21.0` (Node 26 supported). The package is no longer private.
+
+[Unreleased]: https://github.com/jtippett/litewave/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jtippett/litewave/releases/tag/v0.1.0
