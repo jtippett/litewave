@@ -1,11 +1,12 @@
 import { constants } from "node:fs";
-import { lstat, open, realpath } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { AccessError } from "./protocol.js";
 import { requestJson, TransportError } from "./http.js";
 import {
+  canonicalProject,
   exists,
   projectDirectory,
   projectKey,
@@ -225,16 +226,7 @@ async function resolveHttpTarget(
 }
 
 export async function resolveRuntime(project: string): Promise<RuntimeTarget> {
-  const canonical = await realpath(project).catch(
-    (error: NodeJS.ErrnoException) => {
-      throw new AccessError(
-        "invalid_request",
-        error.code === "ENOENT"
-          ? `Project directory does not exist: ${project}`
-          : `Project directory is not accessible: ${project}`,
-      );
-    },
-  );
+  const canonical = await canonicalProject(project);
   const projectId = projectKey(canonical);
   const directory = projectDirectory(canonical);
   const descriptorFile = path.join(directory, "runtime.json");

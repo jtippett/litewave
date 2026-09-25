@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { AccessError, failure, operationSchema } from "./protocol.js";
 import {
+  home,
   register,
   registration,
   publicRegistration,
@@ -98,8 +99,8 @@ async function main() {
                 "--project",
                 r.project,
               ],
-              ...(process.env.LITEWAVE_HOME
-                ? { env: { LITEWAVE_HOME: process.env.LITEWAVE_HOME } }
+              ...(process.env.LITEWAVE_HOME !== undefined
+                ? { env: { LITEWAVE_HOME: home() } }
                 : {}),
             },
           },

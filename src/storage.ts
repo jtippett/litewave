@@ -26,6 +26,18 @@ export const home = () => {
       : configured;
   return path.resolve(expanded);
 };
+// Every command canonicalises --project here, so a mistyped path is an
+// invalid_request rather than an unexplained filesystem error.
+export async function canonicalProject(project: string): Promise<string> {
+  return realpath(project).catch((error: NodeJS.ErrnoException) => {
+    throw new AccessError(
+      "invalid_request",
+      error.code === "ENOENT"
+        ? `Project directory does not exist: ${project}`
+        : `Project directory is not accessible: ${project}`,
+    );
+  });
+}
 export const projectKey = (canonical: string) => hash(canonical).slice(0, 24);
 export const projectDirectory = (canonical: string) =>
   path.join(home(), "projects", projectKey(canonical));
@@ -137,7 +149,7 @@ export async function register(
   app: string,
   roots: string[] = [],
 ): Promise<Registration> {
-  const canonical = await realpath(project);
+  const canonical = await canonicalProject(project);
   const url = new URL(app);
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -194,7 +206,7 @@ export async function register(
   return r;
 }
 export async function registration(project: string): Promise<Registration> {
-  const canonical = await realpath(project);
+  const canonical = await canonicalProject(project);
   const r = await readJson<Registration>(
     path.join(projectDirectory(canonical), "registration.json"),
   ).catch((error: NodeJS.ErrnoException) => {

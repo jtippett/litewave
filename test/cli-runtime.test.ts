@@ -41,21 +41,21 @@ test("runtime tools work without a browser registration; init defaults --app fro
     );
   });
   const previousHome = process.env.LITEWAVE_HOME;
-  process.env.LITEWAVE_HOME = home;
-  const socketPath = runtimeSocketPath(project);
-  await mkdir(path.dirname(socketPath), { recursive: true, mode: 0o700 });
-  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
-  await atomicJson(path.join(projectDirectory(project), "runtime.json"), {
-    version: 1,
-    project,
-    project_id: projectId,
-    runtime_id: "instance-1",
-    os_pid: process.pid,
-    socket: socketPath,
-    started_at: new Date().toISOString(),
-    capabilities: ["get_docs"],
-  });
   try {
+    process.env.LITEWAVE_HOME = home;
+    const socketPath = runtimeSocketPath(project);
+    await mkdir(path.dirname(socketPath), { recursive: true, mode: 0o700 });
+    await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+    await atomicJson(path.join(projectDirectory(project), "runtime.json"), {
+      version: 1,
+      project,
+      project_id: projectId,
+      runtime_id: "instance-1",
+      os_pid: process.pid,
+      socket: socketPath,
+      started_at: new Date().toISOString(),
+      capabilities: ["get_docs"],
+    });
     const status = await run(
       process.execPath,
       [cli, "phoenix", "status", "--project", project],
@@ -100,16 +100,28 @@ test("runtime tools work without a browser registration; init defaults --app fro
       [cli, "init", "--project", project],
       { env },
     );
-    assert.equal(
-      JSON.parse(init.stdout).registration.app,
-      "http://localhost:4123/",
-    );
+    const printed = JSON.parse(init.stdout);
+    assert.equal(printed.registration.app, "http://localhost:4123/");
+    assert.equal(printed.mcpServers.litewave.env.LITEWAVE_HOME, home);
     assert.equal((await registration(project)).app, "http://localhost:4123/");
+
+    // A relative LITEWAVE_HOME is printed resolved, so the MCP client that
+    // copies the entry uses the same storage whatever its working directory.
+    const relativeInit = await run(
+      process.execPath,
+      [cli, "init", "--project", project, "--app", "http://localhost:4123"],
+      { env: { ...process.env, LITEWAVE_HOME: "relative-home" }, cwd: project },
+    );
+    assert.equal(
+      JSON.parse(relativeInit.stdout).mcpServers.litewave.env.LITEWAVE_HOME,
+      path.join(project, "relative-home"),
+    );
   } finally {
     if (previousHome === undefined) delete process.env.LITEWAVE_HOME;
     else process.env.LITEWAVE_HOME = previousHome;
     server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (server.listening)
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(root, { recursive: true, force: true });
   }
 });
@@ -129,6 +141,31 @@ test("init without --app and without a runtime names the flag", async () => {
         return true;
       },
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a nonexistent --project is an invalid_request for init and status", async () => {
+  const root = await mkdtemp("/tmp/lw-n-");
+  const env = { ...process.env, LITEWAVE_HOME: path.join(root, "s") };
+  const missing = "/nonexistent/litewave/project";
+  try {
+    for (const args of [
+      ["init", "--app", "http://localhost:4000"],
+      ["status"],
+    ]) {
+      await assert.rejects(
+        run(process.execPath, [cli, ...args, "--project", missing], { env }),
+        (error: { code: number; stderr: string }) => {
+          assert.equal(error.code, 1);
+          const result = JSON.parse(error.stderr);
+          assert.equal(result.error.code, "invalid_request");
+          assert.match(result.error.message, /does not exist/);
+          return true;
+        },
+      );
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

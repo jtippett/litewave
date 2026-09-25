@@ -103,7 +103,7 @@ export class BrowserWorker {
       if (this.context.browser()?.version() !== QUALIFIED_BROWSER_VERSION)
         throw new AccessError(
           "browser_version_mismatch",
-          "The installed browser differs from Litewave's qualified version. Run npm ci and litewave browser install.",
+          "The installed browser differs from Litewave's qualified version. Run litewave browser install (contributors working from a checkout: run npm ci first).",
           "doctor",
         );
       if (options.storageState)
