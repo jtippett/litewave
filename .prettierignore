@@ -1,7 +1,7 @@
 node_modules
 dist
 package-lock.json
-docs/spec.md
+docs/design/2026-09-15-original-spec.md
 
 packages/phoenix/_build
 packages/phoenix/deps

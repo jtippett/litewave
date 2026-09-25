@@ -1,12 +1,12 @@
 # Local browser and Phoenix access — implementation specification
 
-Status: proposed build specification, 15 September 2026. Working label: Local Access; package names must be checked before publication. This document authorizes no deployment or dependency changes. The user requested a thorough specification; implementation has not started.
+Status: original build specification, 15 September 2026, preserved as design history. The implemented behaviour is described in the repository README and docs/status.md; where they differ, they are authoritative.
 
 ## 1. Product decision
 
 Build a free, open-source library and local service that lets an agent operate a real browser, collect evidence, and inspect a running Phoenix application. It must work without a vendor account, hosted relay, paid API, or browser control page that has to remain open.
 
-The first acceptance exercise is Langelic's PDF-to-EPUB conversion: upload a PDF, choose reflow without translation, observe preparation, download the EPUB, and retain enough evidence to evaluate the experience and output. Browser operations must work for React/Inertia, LiveView, and ordinary server-rendered pages.
+The first acceptance exercise is a customer's PDF-to-EPUB conversion: upload a PDF, choose reflow without translation, observe preparation, download the EPUB, and retain enough evidence to evaluate the experience and output. Browser operations must work for React/Inertia, LiveView, and ordinary server-rendered pages.
 
 The primary deliverable is reliable local access. It does not decide whether an EPUB is good, contain a model, or require an agent subscription of its own. The calling agent performs the evaluation using returned evidence.
 
@@ -22,11 +22,11 @@ The primary deliverable is reliable local access. It does not decide whether an 
 
 ## 2. Evidence motivating the build
 
-During the current evaluation, the app responded at localhost:4444 while Tidewave browser control was unavailable. Vendor login interrupted the task; session IDs disappeared after navigation/reconnection; control disconnected during an export click. Reopening the control page sometimes helped and later did not. Even after the user's latest reconnect attempt, two new-session requests returned no connected browser.
+The project was motivated by an evaluation session in which the application under test responded on its port while the vendor's browser control was unavailable. Vendor login interrupted the task; session IDs disappeared after navigation and reconnection; control disconnected during an export click. Reopening the control page sometimes helped and later did not; two new-session requests returned no connected browser.
 
 The exact underlying cause of these disconnects is unverified. The replacement must expose enough diagnostics to distinguish authentication, browser ownership, transport, and app failures rather than assume they share one cause.
 
-The separate Chrome tool also reported an occupied automation profile. We could operate the file input only by constructing a File/DataTransfer object in page evaluation. Several actions returned before React updated its view. The current documented Tidewave browser API provided no dedicated screenshot, upload, or download-capture operation.
+The separate Chrome tool also reported an occupied automation profile. The file input could be operated only by constructing a File/DataTransfer object in page evaluation. Several actions returned before React updated its view. The current documented Tidewave browser API provided no dedicated screenshot, upload, or download-capture operation.
 
 The timed-out export click created no new source export at the time of a read-only database check. That is an observation about this attempt, not a general guarantee that timed-out clicks have no effect.
 
@@ -35,7 +35,7 @@ The timed-out export click created no new source export at the time of a read-on
 | Release | Required scope |
 | --- | --- |
 | First usable release | macOS; dedicated visible Chromium profile; browser library, local supervisor, CLI/MCP bridge; snapshots, interactions, file handling, evidence, reconnect and action journal |
-| Phoenix integration | Development-only Mix dependency exposing logs, docs, source locations, explicit runtime evaluation, and read-only SQL; Langelic worktree identity |
+| Phoenix integration | Development-only Mix dependency exposing logs, docs, source locations, explicit runtime evaluation, and read-only SQL; per-worktree identity |
 | Later compatibility | Linux CI; qualified attachment to an existing Chromium debugging endpoint; Firefox/WebKit adapters; Windows packaging |
 
 Chromium is the initial supported browser because it provides a bounded implementation target. This is not a claim that Playwright can attach to the current Safari window. Safari application-session reuse needs a separate adapter and is deferred. A user signs into Langelic once in the dedicated browser; do not copy cookies out of their everyday browser.
@@ -194,7 +194,7 @@ Required operations:
 - Runtime evaluation: separate opt-in capability, executed in a supervised task with time/output limits. Arbitrary Elixir evaluation can mutate state and is not a sandbox. Killing a task does not undo effects; label uncertainty honestly.
 - Health: app identity, environment, endpoint, versions, adapter status. Refuse production mode by default.
 
-Do not ship Langelic-specific workflow queries in the general adapter. Job observations should be opt-in integrations over supported app APIs. When implementing HTTP calls in Langelic or its Elixir integration, use Req.
+Do not ship Langelic-specific workflow queries in the general adapter. Job observations should be opt-in integrations over supported app APIs. When implementing HTTP calls in a customer application or its Elixir integration, use Req.
 
 ## 11. Local security and privacy
 
@@ -229,9 +229,9 @@ All performance numbers below are targets to measure on a documented reference m
 | Local boundary | Host/Origin rejection, symlink escape, arbitrary overwrite, unauthorized socket and token access tested |
 | App/runtime failures | App-down and adapter-down do not masquerade as lost browser authentication |
 
-Target p95 control overhead below 500 ms excluding app waits and screenshot encoding. Reattach a live worker within five seconds of client restart. Ten repeated end-to-end runs against a deterministic local fixture app must require zero human reconnects. Separately run the real Langelic workflow, whose LLM/network timing is outside the access library's guarantee.
+Target p95 control overhead below 500 ms excluding app waits and screenshot encoding. Reattach a live worker within five seconds of client restart. Ten repeated end-to-end runs against a deterministic local fixture app must require zero human reconnects. Separately run a real customer workflow, whose LLM/network timing is outside the access library's guarantee.
 
-### Langelic product-quality exercise
+### Customer product-quality exercise
 
 1. Upload the notation fixture; preserve initials, spaced letters and code verbatim.
 2. Upload a materially different multipage document with paragraphs, headings, images, and a table. Record its provenance and expected reading order before conversion.
@@ -258,9 +258,3 @@ Each stage must meet its acceptance cases before moving on. A developer should b
 Proposed defaults: macOS and visible Chromium first; TypeScript/Playwright browser core; separate optional Elixir dependency; stdio MCP entrypoint; local Unix socket; one dedicated profile per registration; seven-day diagnostic retention; no vendor service. Prefer a permissive license, provisionally MIT for original code, subject to dependency-license review before publication.
 
 Resolve during feasibility: public package names, whether Playwright MCP exposes an appropriate reusable API, robust worker supervision across supervisor crash, exact browser/runtime versions, optional existing-Chromium support, and an EPUB reader for quality evaluation. These do not block agreeing on the product contract. No implementation estimate should be promised until the browser-worker recovery spike passes.
-
-## 15. Resume the current evaluation
-
-The notation fixture was imported as document `01a0a44f-2be3-71d4-8b7e-68807fce82d9`. The existing ten-page Textilepedia PDF is `019daf50-bff8-73a2-99fa-f8bdaf30a973`. Neither has a newly verified source EPUB from this browser test. Check current export state before resubmitting anything, then complete Preview/Download and inspect the actual artifact.
-
-Supporting records: [access observations](2026-09-15-local-browser-access.md) and [PDF evaluation findings](2026-09-15-pdf-reflow-evaluation.md). Findings are incomplete; browser disconnection must not be presented as evidence of a broken EPUB converter.
