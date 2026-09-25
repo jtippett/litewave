@@ -1,0 +1,45 @@
+name: Bug report
+description: Something Litewave does wrong, or an outcome it reports incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Keep tokens, cookies, customer data and private URLs out of this report.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command or MCP tool call, the JSON result, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: litewave doctor output
+      description: Run `litewave doctor --project PATH` and paste the JSON. Redact anything private.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: Litewave version
+      description: "`litewave --version` is not implemented yet: use `npm ls -g litewave` or the version in your lockfile, and the `litewave_phoenix` version from `mix.lock` if the Phoenix tools are involved."
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and version, Node version, and (for Phoenix issues) Elixir and OTP versions.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Browser (CLI or MCP)
+        - Phoenix runtime tools
+        - Installation or packaging
+        - Documentation
+    validations:
+      required: true

@@ -1,0 +1,25 @@
+name: Feature request
+description: A capability Litewave should have
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The task, the agent or tool you use, and where Litewave stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What the command, tool, or option would do, and how its outcome would be reported.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is generic (works for ordinary web pages or any Phoenix app), not specific to one application.
+          required: true

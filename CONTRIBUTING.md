@@ -40,4 +40,15 @@ Set `LITEWAVE_TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database t
 - npm dependencies are exact and lockfile changes are reviewed. Document licences before copying upstream code (`NOTICE`, `docs/dependency-licenses.md`).
 - Update `docs/status.md` and the relevant `CHANGELOG.md` with the change.
 
+## Releasing
+
+Both packages share one version and one tag. To release `X.Y.Z`:
+
+1. Move the `[Unreleased]` entries in `CHANGELOG.md` and `packages/phoenix/CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD` heading and add the compare links at the bottom of each file.
+2. Bump the version: `npm version X.Y.Z --no-git-tag-version` and `@version "X.Y.Z"` in `packages/phoenix/mix.exs`. `scripts/release-check.sh vX.Y.Z` must pass; it is also what the release workflow runs.
+3. Commit as `Release X.Y.Z`, then tag and push: `git tag -a vX.Y.Z -m "Litewave X.Y.Z" && git push origin main vX.Y.Z`.
+4. The `Release` workflow re-runs both suites, then waits in the `release` environment for the maintainer's approval. Approval publishes `litewave` to npm with provenance and `litewave_phoenix` (with docs) to Hex, and creates the GitHub release from the changelog section.
+
+Secrets the `release` environment needs: `NPM_TOKEN` (an npm granular access token with publish rights and 2FA bypass for automation) and `HEX_API_KEY` (`mix hex.user key generate --permission api:write`). Dependabot opens weekly update pull requests for npm, Hex and GitHub Actions; lockfile changes are reviewed like any other change.
+
 Security reports go through GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).

@@ -31,6 +31,12 @@ at the bottom; nothing here is a production reliability claim.
   identity, tools, execution deduplication, timeouts, log capture, and the
   real Node bridge over both transports. PostgreSQL cases run when
   `LITEWAVE_TEST_DATABASE_URL` is set.
+- The `Release` workflow, on a `v*` tag: `scripts/release-check.sh` confirms
+  the tag matches `package.json`, `mix.exs` and a dated section in both
+  changelogs; both suites run again; publishing to npm (with provenance) and
+  Hex happens only after approval in the `release` environment.
+- CI also runs `mix hex.audit`, `mix docs --warnings-as-errors`, and checks
+  that the Hex tarball ships the changelog, both licences and `NOTICE`.
 
 The browser pin and the crash it avoids are documented in
 [the investigation](browser-crash-investigation.md). The downloaded test
