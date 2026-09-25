@@ -1,36 +1,43 @@
 # Contributing to Litewave
 
-Litewave is being built as a community project. Its core should work with ordinary web pages, React/Inertia, and Phoenix LiveView. Customer-specific routes, selectors, documents, and database queries belong in examples or external integration tests.
+Litewave is a community project hosted at <https://github.com/jtippett/litewave>, maintained by James Tippett (`@jtippett`). Its core must work with ordinary web pages, React/Inertia, and Phoenix LiveView. Application-specific routes, selectors, and queries belong in `examples/` or in external integration tests, never in the core.
 
 ## Development
 
-Use Node 24.21.0, then:
+Use Node 24.21.0 (`.nvmrc`), then:
 
 ```sh
 npm ci
 npm run browser:install
-npm run format
-npm run check
-npm run test:browser
+npm run check              # prettier, oxlint, build, unit and contract tests
+npm run test:browser       # real Chromium against a local fixture app
 LITEWAVE_TEST_HEADED=1 npm run test:browser
 ```
 
-The browser test creates a deterministic loopback fixture server and isolated temporary profile. It starts no customer application and uses no external account. Unit tests run without a browser. macOS is the initial supported platform; Linux CI is supplemental evidence, not a claim of Linux product support.
+The browser suite runs a deterministic loopback fixture server with an isolated temporary profile. It starts no external application and uses no account. Unit tests run without a browser. macOS is the supported platform; Linux CI is supplemental evidence.
 
-## Phoenix development
+## Phoenix package
 
-After building the Node bridge, run `npm run test:phoenix`. Set `LITEWAVE_TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database to include SQL tests. Package-specific behavior and licensing are documented in `packages/phoenix/README.md`. Run `mix precommit` in that package after Elixir changes.
+Build the Node bridge first (`npm run build`), then:
+
+```sh
+cd packages/phoenix
+mix deps.get
+mix precommit              # compile --warnings-as-errors, format, credo --strict, dialyzer, test
+```
+
+Set `LITEWAVE_TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database to include the SQL tests; without it they are excluded. Never point them at a real database. CI runs Elixir 1.17 on OTP 27 and Elixir 1.20 on OTP 29.
 
 ## Changes and reviews
 
-- Explain the user-visible behavior, boundaries, and validation in the PR.
-- Read `docs/spec.md` and `docs/status.md` before implementing a new capability.
-- Keep browser operations in the core. CLI and MCP must share the schema and implementation.
-- Use public Playwright APIs. Do not import undocumented internals.
+- Explain the user-visible behaviour, its boundaries, and how you validated it in the pull request.
+- Read `docs/status.md` (capability matrix) and, for background, `docs/design/2026-09-15-original-spec.md` before adding a capability.
+- Browser operations live in the core. CLI and MCP share the schema and implementation.
+- Use public Playwright APIs and the official MCP SDK. Do not import undocumented internals.
 - Never replay an uncertain mutation automatically. Add a failure regression for changes to dispatch, persistence, transport, or ownership.
-- Avoid tests that only mirror code. Prefer observable behavior: one submission after transport loss, saved files after browser close, rejected cross-project access.
+- Prefer tests of observable behaviour (one submission after transport loss, saved files after browser close, rejected cross-project access) over tests that mirror code.
 - Keep state, tokens, private URLs, and customer artifacts out of commits and bug reports.
-- Dependencies are exact and lockfile changes are reviewed. Document licenses before copying upstream code.
-- Update the capability matrix with evidence. An untested requirement remains unchecked.
+- npm dependencies are exact and lockfile changes are reviewed. Document licences before copying upstream code (`NOTICE`, `docs/dependency-licenses.md`).
+- Update `docs/status.md` and the relevant `CHANGELOG.md` with the change.
 
-The initial GitHub home, maintainers, package namespace, and private vulnerability-reporting channel still need to be selected before a public release. Do not invent those addresses or publish the package without that setup.
+Security reports go through GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).

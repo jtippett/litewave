@@ -38,10 +38,10 @@ Litewave's independent browser does not require embedding the app in a control p
 
 ## Versions
 
-Node 24.21.0 LTS; Playwright 1.62.0; Chromium 151.0.7922.34, Playwright revision 1234; MCP SDK 1.30.0. Exact dependencies and integrity hashes are in `package-lock.json`. Browser installation is explicit. Original code is MIT; publication and package namespace checks remain pending.
+Node 24.21.0 LTS; Playwright 1.62.0; Chromium 151.0.7922.34, Playwright revision 1234; MCP SDK 1.30.0. Exact dependencies and integrity hashes are in `package-lock.json`. Browser installation is explicit. Original code is MIT; published as npm `litewave` and Hex `litewave_phoenix`.
 
 ## Phoenix connection
 
-The stdio MCP bridge calls the project’s authenticated loopback `/litewave/runtime` endpoint directly. This connection does not pass through the browser worker. Each execution carries a runtime identity and request ID; the supervised runtime tracks duplicates within that lifetime and refuses old identities after restart. The Plug leaves ordinary application responses unchanged.
+The stdio MCP bridge reaches the project's runtime directly, not through the browser worker. By default it reads `projects/<key>/runtime.json` under `LITEWAVE_HOME`, checks that the run directory and socket are owned by the current user, and connects to the Unix socket the `litewave_phoenix` application published at boot. If the descriptor is absent, or the socket refuses before anything was sent, and `phoenix.json` exists, it falls back to the authenticated loopback `/litewave/runtime` endpoint served by the optional `Litewave` Plug. Each execution carries a runtime identity and request ID; the supervised runtime tracks duplicates within that lifetime and refuses old identities after restart.
 
 The browser pin is qualified with stock Playwright launch settings. `src/profile.ts` rejects an accidental driver upgrade before opening a profile and prevents newer-profile downgrades; replacement is explicit, with optional storage-state import. `src/profile-ownership.ts` permits normal Chromium startup through a leftover lock only when it matches the registration's persisted closed session and the recorded local owner process is absent. Otherwise it fails closed. No lock is unlinked by Litewave. Stop waits for Playwright's bounded termination and the durable ownership record, reports elapsed time, and rejects new tab actions while closing. Completed artifacts and interrupted transfer records are reloaded independently of a worker's lifetime.

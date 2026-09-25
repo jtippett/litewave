@@ -1,61 +1,62 @@
 # Litewave
 
-Local browser access for coding agents. A dedicated Chromium browser stays open when a CLI or MCP client disconnects. No Litewave account, hosted relay, or model subscription is required.
+Local browser access and Phoenix runtime tools for coding agents.
 
-**Development alpha — the feasibility slice of [the specification](docs/spec.md).** This is the start of a community project, not a feature-complete Tidewave replacement. Browser access works independently of Phoenix. The optional Phoenix adapter now provides runtime docs, source locations, logs, evaluation, and SQL. See [tested behavior and release gates](docs/status.md).
+Litewave keeps a dedicated Chromium open on your machine and lets an agent drive it through a CLI or an MCP server: navigate, click, fill, upload, download, screenshot, and read the accessibility tree. Every mutation is journaled with a caller-chosen request ID, so a lost response is reported as unknown, never as success, and is never replayed automatically.
+
+For Phoenix applications, an optional development dependency publishes runtime tools (docs, source locations, logs, evaluation, SQL) on a private Unix socket at boot. No port, token, or endpoint change is needed, and the tools work without an open browser.
+
+Everything stays on your machine. There is no Litewave account, relay, or model subscription.
 
 ## Requirements
 
-- macOS; Node **24.21.0 LTS**, selected by `.nvmrc` / `.node-version`.
-- npm and an explicitly installed Chromium binary.
-- Your application already running. Litewave never starts or restarts it.
+- macOS. Linux runs in CI but is not yet a supported platform.
+- Node 24.21.0 or newer. `.nvmrc` and `.node-version` pin the development version.
+- Your application already running. Litewave never starts, restarts, or repairs it.
 
-## Run from source
+## Install
 
-```sh
-npm ci
-npm run browser:install
-npm run build
-node dist/src/cli.js init --project /absolute/path/to/app --app http://localhost:4000
-node dist/src/cli.js browser open --project /absolute/path/to/app
-node dist/src/cli.js status --project /absolute/path/to/app
-```
-
-The npm package is intentionally private until its name and release gates are settled. These commands run the local checkout; no global install is needed. Browser binaries are installed only by the explicit install command. Normal browser use does not contact a Litewave service.
-
-`init` prints an MCP configuration containing the absolute Node and CLI paths. Add that entry to your agent's MCP configuration. Litewave does not edit existing agent configuration. Start the browser explicitly before attaching MCP. Sign into your app normally in the dedicated browser, then reuse that profile. This alpha initially opens a blank tab; use the URL bar or the `navigate` operation to visit the registered app.
-
-## Qualified browser and profile transitions
-
-Litewave pins **Playwright 1.62.0 / Chromium 151.0.7922.34** to avoid the reproduced Chromium 153/154 persistent-download restart crash. It uses the stock Playwright launch settings. Chromium can occasionally take Playwright's 30-second termination timeout to exit; Litewave reports slow shutdown and records enough ownership evidence to reopen safely afterward. See [the investigation and upgrade gate](docs/browser-crash-investigation.md).
-
-Litewave refuses to open a profile last used by a newer Chromium. To explicitly create a compatible replacement while preserving the previous profile:
+### CLI and MCP server
 
 ```sh
-node dist/src/cli.js stop --project /absolute/path/to/app
-node dist/src/cli.js browser open --project /absolute/path/to/app --fresh-profile
+npm install -g litewave
+litewave browser install
 ```
 
-Sign in normally in the replacement. Alternatively, add `--storage-state /absolute/path/to/state.json` to import an explicitly supplied Playwright storage-state export into the fresh profile. That file contains authentication: keep it private and remove the temporary export after import. Litewave never exports authentication or imports it from another browser automatically. Subsequent normal opens reuse the selected profile. The registration, upload policy, action journal, retained downloads, and old profile remain in place; tabs and unsaved page state do not transfer.
+`browser install` downloads the pinned Chromium build once. Nothing is installed automatically. Prefer not to install globally? Prefix every command below with `npx litewave` instead.
 
-## Phoenix runtime tools
+### Phoenix runtime tools
 
-Run `node dist/src/cli.js phoenix setup --project /absolute/path/to/app` to generate the local connection, then follow the [Phoenix package setup](packages/phoenix/README.md). Runtime tools work without an open browser. Evaluation and writable SQL require explicit app configuration.
+Add the development-only dependency and restart your app:
 
-## Use the CLI or MCP
+```elixir
+# mix.exs
+{:litewave_phoenix, "~> 0.1", only: :dev}
+```
 
-Every browser operation uses the same schema and response envelope through the library, CLI, and MCP `browser` tool.
+That is the whole install. Details, options, and the alternative HTTP transport are in the [Phoenix package README](packages/phoenix/README.md).
+
+## First session
+
+Register the project. When the Phoenix app is running with `litewave_phoenix`, the app URL is read from it; otherwise pass `--app`.
 
 ```sh
-node dist/src/cli.js call --project /absolute/path/to/app --json '{"method":"tabs","requestId":"inspect-tabs-1"}'
+litewave init --project /absolute/path/to/app
+litewave browser open --project /absolute/path/to/app
 ```
 
-Take a `tabId` from that result. There is no implicit selected tab.
+`init` prints an MCP server entry with absolute Node and CLI paths. Add it to your agent's MCP configuration; Litewave never edits agent configuration itself. Sign into your app normally in the dedicated browser. The profile persists, so you sign in once.
+
+Every browser operation uses the same JSON schema and response envelope through the CLI, the library, and the MCP `browser` tool. List tabs, then act on one:
+
+```sh
+litewave call --project /absolute/path/to/app --json '{"method":"tabs","requestId":"tabs-1"}'
+```
 
 ```json
 {
   "method": "navigate",
-  "requestId": "navigate-home-1",
+  "requestId": "home-1",
   "tabId": "TAB_ID",
   "url": "http://localhost:4000"
 }
@@ -74,51 +75,79 @@ Take a `tabId` from that result. There is no implicit selected tab.
 }
 ```
 
-Use a new request ID for each intended mutation. **After a lost response, query `action_status` with `actionId: "export-1"`.** Sending the same operation with the same request ID returns its prior state; it does not click again. Changing parameters under an existing ID is an error. `dispatched` means the browser call completed. `postcondition_met` confirms the requested observation. `outcome_unknown` requires investigation; it does not imply the app failed.
+Use a new request ID for each intended mutation. After a lost response, query `action_status` with `actionId: "export-1"`: the same ID returns the prior state and never clicks again. `dispatched` means the browser call completed; `postcondition_met` confirms the requested observation; `outcome_unknown` means investigate, not that the app failed.
 
-Locators support exact role/name, test ID, and explicit CSS. Ambiguous targets fail. Supply `revision` from a snapshot to reject an action after navigation. Snapshot references, frame targets, and page evaluation are not exposed in this alpha.
-
-### Upload folder setup
-
-**An uploads folder is optional.** Browser uploads send local files to your app. Litewave limits file selection to folders you explicitly allow, so the agent cannot select arbitrary local files through the browser tool. Browsing, downloads, and Phoenix tools work without upload access.
-
-Use an existing folder containing files you intend to upload, such as a fixture directory. You can create a dedicated staging folder if you prefer, but no particular folder name or location is required. Litewave does not create one or broaden access automatically. Choose a narrow folder: its subfolders are also allowed, and symlinks cannot escape the configured boundary.
-
-For a **new** registration, add `--upload-root` to `init`; repeat it for multiple folders:
+Runtime tools need no browser:
 
 ```sh
-node dist/src/cli.js init --project /absolute/path/to/app --app http://localhost:4000 --upload-root /absolute/path/to/existing-fixtures
+litewave phoenix status --project /absolute/path/to/app
+litewave phoenix call --project /absolute/path/to/app --tool get_docs --json '{"reference":"Enum.map/2"}'
+litewave mcp --project /absolute/path/to/app
 ```
 
-For an **existing** registration, run `doctor --project PATH`. Its `uploads` section shows the configured folders, their purpose, and the registration file path, even when the browser is closed. Browser `status` reports the policy loaded by its current worker.
+## Guides
 
-This alpha has no registration-update command yet. To change existing upload access, finish active browser actions/downloads, run `stop --project PATH`, and edit only the `uploadRoots` array in the registration file reported by doctor. Set it to the absolute paths of the existing folders you explicitly choose (or `[]` to disable uploads). Keep the file private and leave all other fields unchanged. Then run `browser open --project PATH` to load the policy. This closes and reopens Litewave's browser, so finish work in open tabs first. Do not delete the registration or rerun `init`; neither is needed to change upload folders.
+- [Phoenix package](packages/phoenix/README.md): install, options, tool behaviour, the HTTP Plug alternative.
+- [Security model](SECURITY.md)
+- [Architecture](docs/architecture.md)
+- [Capability matrix](docs/status.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Example: a LiveView application](examples/langelic.md)
+- [Original design specification](docs/design/2026-09-15-original-spec.md)
 
-### Files and screenshots
+## Reference
 
-- `upload`: provide a file-input `target` and absolute `paths` within registered upload roots. `paths: []` clears the selection. File selection does not confirm server import.
-- Downloads are captured from every tab from creation, before click dispatch. Poll `downloads` for `complete`, retained `path`, size, and SHA-256. A click is not proof of a completed download. Each download has its own destination directory.
-- `screenshot`: viewport by default, `fullPage: true` for the entire page, or `target` for an element. Returns a local PNG path, image dimensions, viewport, and revision. Password inputs are masked.
-- `snapshot`: bounded accessibility text, optionally scoped to a target. Truncation is explicit; cursor pagination is planned.
+### Locators, waits, files
+
+Locators support exact role/name, test ID, and explicit CSS. Ambiguous targets fail. Supply `revision` from a snapshot to reject an action after navigation.
+
+- `snapshot`: bounded accessibility text, optionally scoped to a target. Truncation is explicit.
 - `wait`: a target, `state: "visible"` or `"hidden"`, and optional `timeoutMs` up to 30 seconds.
+- `screenshot`: viewport by default, `fullPage: true`, or `target` for an element. Returns a local PNG path; password inputs are masked.
+- `upload`: a file-input `target` and absolute `paths` inside registered upload roots. `paths: []` clears the selection. Selection does not confirm server import.
+- Downloads are captured from every tab from creation, before click dispatch. Poll `downloads` for `complete`, retained `path`, size, and SHA-256. Each download gets its own directory.
 
-Full schemas: [src/protocol.ts](src/protocol.ts). Public library exports: [src/index.ts](src/index.ts).
+Full schemas: [src/protocol.ts](src/protocol.ts). Library exports: [src/index.ts](src/index.ts).
 
-## Ownership and troubleshooting
+### Upload folders
+
+Uploads are optional. Browser uploads send local files to your app, so Litewave limits selection to folders you allow explicitly; the agent cannot pick arbitrary local files. Use an existing folder of files you intend to upload, such as a fixture directory. Subfolders are allowed; symlinks cannot escape the boundary.
 
 ```sh
-node dist/src/cli.js doctor --project /absolute/path/to/app
-node dist/src/cli.js stop --project /absolute/path/to/app
+litewave init --project /absolute/path/to/app --upload-root /absolute/path/to/fixtures
 ```
 
-`doctor` probes application HTTP reachability separately from worker connectivity; login is reported as unknown. `stop` explicitly closes the owned browser and worker, refusing while an action or download is active. Closing an MCP client only detaches it.
+For an existing registration, `doctor` shows the configured folders and the registration file. To change them: finish active actions, `stop`, edit only `uploadRoots` in that file, then `browser open`. There is no registration-update command yet.
 
-State defaults to `~/.litewave`, with owner-only permissions. Set `LITEWAVE_HOME` to a short absolute directory to relocate it. If using a custom location, pass the same environment to every CLI/MCP client; the generated MCP entry includes it. Identity uses the canonical project directory plus a generated registration ID. Each worktree gets its own registration and profile.
+### Browser version and profile transitions
 
-Unknown profile owners and unresponsive existing sockets require attention. Litewave never kills an unknown browser or unlinks profile locks. After a verified browser closes, a normal explicit open may let Chromium reacquire its own leftover lock only when the recorded project, profile, lock owner, and closed state match and that process is confirmed absent. An absent PID alone is insufficient. The alpha has no automatic recovery after worker death, heartbeat monitor, or daemon restart policy. A worker crash can lose volatile tab state. Saved downloads remain on disk and their manifests are loaded by a replacement worker. Interrupted saves are reported explicitly. A failed launch remains available through doctor until stop, preserving its specific error.
+Litewave pins Playwright 1.62.0 / Chromium 151.0.7922.34 to avoid a reproduced Chromium 153/154 crash on restart with retained downloads; see [the investigation](docs/browser-crash-investigation.md). It refuses to open a profile last used by a newer Chromium. To create a compatible replacement while keeping the old profile:
 
-See [security](SECURITY.md), [architecture](docs/architecture.md), and the [Langelic example](examples/langelic.md).
+```sh
+litewave stop --project /absolute/path/to/app
+litewave browser open --project /absolute/path/to/app --fresh-profile
+```
 
-## Contribute
+Sign in again, or add `--storage-state /absolute/path/to/state.json` to import an explicitly exported Playwright storage state. That file contains authentication: keep it private and delete it after import. Litewave never exports authentication or copies cookies from another browser.
 
-Start with [CONTRIBUTING.md](CONTRIBUTING.md). Original code is [MIT licensed](LICENSE); dependency and upstream references are in [NOTICE](NOTICE). Contributions should establish general behavior using local fixtures. Langelic is the first customer, not a dependency or the product specification.
+### Ownership and troubleshooting
+
+```sh
+litewave doctor --project /absolute/path/to/app
+litewave stop --project /absolute/path/to/app
+```
+
+`doctor` probes the app over HTTP, the browser worker, and the Phoenix runtime separately. `stop` closes the owned browser and worker and refuses while an action or download is active. Closing an MCP client only detaches it.
+
+State lives in `~/.litewave` with owner-only permissions. `LITEWAVE_HOME` relocates it: use a short absolute path (socket paths are limited to about 100 bytes on macOS), not a symlink, and set the **same value for the app and every CLI/MCP client** of a project; the MCP entry printed by `init` includes it. Project identity is the canonical project directory, so each worktree gets its own registration, profile, and runtime socket.
+
+Litewave never kills an unknown browser or deletes a profile lock. After a verified close it may let Chromium reacquire its own leftover lock only when the recorded owner is absent and the profile evidence matches. Worker death currently loses volatile tab state; saved downloads remain on disk.
+
+## Status
+
+Litewave is a development alpha. Browser access and the Phoenix runtime tools work and are covered by contract tests, real-browser suites, and a real MCP client over the socket. Not yet implemented: automatic worker recovery, snapshot references and frames, dialogs, drag and scroll, enforced read-only SQL, and Windows or Linux support. The [capability matrix](docs/status.md) lists what is tested and what remains.
+
+## Contributing and licence
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Original code is [MIT licensed](LICENSE); dependency and upstream notices are in [NOTICE](NOTICE). The Phoenix package additionally carries Apache-2.0 attribution for code adapted from Tidewave.

@@ -2,7 +2,7 @@
 
 ## Finding
 
-A native Chromium crash can be reproduced without Litewave, Langelic, authentication, or the customer EPUB. Start a new persistent Playwright profile, download two small text files, close the browser normally, reopen the same profile, and repeat. On this machine, visible Chromium failed on the second launch and headless Chromium on the third.
+A native Chromium crash can be reproduced without Litewave, any customer application, authentication, or a customer's EPUB. Start a new persistent Playwright profile, download two small text files, close the browser normally, reopen the same profile, and repeat. On this machine, visible Chromium failed on the second launch and headless Chromium on the third.
 
 This establishes a persistent-download lifecycle failure in the tested browser/Playwright combination. It does not identify the exact C++ defect, prove which component first creates the problematic state, or establish that every Chromium build is affected. The final pin and ownership recovery are recorded below; the exact native C++ defect remains unidentified.
 
@@ -90,7 +90,7 @@ Qualification before customer activation:
 
 - Full headless and visible Litewave acceptance suites pass, including twenty MCP reconnects per mode.
 - The new lifecycle suite passes ten browser launches per mode, two verified downloads per launch, persistent login, restored artifact listings, explicit storage-state import, and no replay of an interrupted submission. Shutdowns are required to finish within ten seconds; inspected normal-launch logs show clean exits rather than forced cleanup.
-- An isolated Langelic test passes twenty real EPUB downloads over five launches per mode. Every retained file matches the original 4,996,954-byte artifact hash; every shutdown completes within ten seconds. It reuses the approved development login, without submitting conversions or restarting the app.
+- An isolated test against a real customer application passes twenty real EPUB downloads over five launches per mode. Every retained file matches the original artifact hash; every shutdown completes within ten seconds. It reuses the approved development login, without submitting conversions or restarting the app.
 - A public-CDP native-crash injection during a slow download confirms that Litewave remains reachable, preserves a completed zero-byte file, marks the interrupted transfer as browser_closed, provides a doctor remedy, and reloads both records after an explicitly requested replacement worker. The test waits for the close event rather than a reply from the process it deliberately crashes.
 
 Recovery changes also preserve startup profile-conflict errors through the authenticated worker handshake, classify ordinary wait timeouts correctly, and avoid labelling a browser exit during a postcondition as a timeout. Download manifests are persisted before transfer, reloaded across workers, and report interrupted or missing files explicitly. Loaded completion records retain the original hash; startup checks file presence and size, rather than claiming to rehash every historical file. Browser shutdown after a verified save does not retroactively fail that artifact.
@@ -120,7 +120,7 @@ The one-time transition from a Chromium 153 profile remains explicit: keep that 
 - `npm run check`: nine unit/contract tests pass, with formatting and TypeScript checks.
 - Headless and visible `npm run test:browser`: four acceptance/fault cases pass per mode. Each mode includes twenty actual MCP reconnects and ten browser restart cycles. Each also deliberately crashes one owned native browser and then reuses its profile successfully. There were no unexpected native download crashes.
 - The final visible run included one Playwright-forced shutdown at its termination timeout; the subsequent same-profile reopen preserved login, artifacts and action identity. This is tested bounded recovery, not a claim that every Chrome exit is graceful.
-- Twenty real Langelic EPUB downloads passed across five launches per mode using the final stock launch settings and ownership recovery. All files matched the expected 4,996,954-byte artifact hash.
+- Twenty real EPUB downloads from a customer application passed across five launches per mode using the final stock launch settings and ownership recovery. All files matched the expected artifact hash.
 - Customer activation then passed two more real downloads through the actual MCP SDK, separated by a full browser/worker restart. Login persisted, the first artifact remained listed, and the browser stayed ready after MCP detach.
-- Langelic now uses a separate Chromium 151 profile. The original Chromium 153 profile still has its original version/lock and no file modification later than 15 September 15:58:55 UTC. The temporary authentication export was removed. Codex and Claude configurations both already point to the rebuilt CLI and Node 24 runtime; neither needed a configuration change.
+- The customer application now uses a separate Chromium 151 profile. The original Chromium 153 profile was left with its original version file and lock, unmodified. The temporary authentication export was removed.
 - `npm pack --dry-run` checked 49 package files: no obsolete feature policy, test/customer fixtures, registration, or authentication export. Nothing was published. The application server was not restarted.
