@@ -1,0 +1,140 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    name: Tag matches versions and changelogs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: bash scripts/release-check.sh "$GITHUB_REF_NAME"
+
+  node:
+    name: Node ${{ matrix.node }} on ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        node: ["24.21.0", "26"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  phoenix:
+    name: Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }}
+    needs: check
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - elixir: "1.17.3"
+            otp: "27"
+          - elixir: "1.20.4"
+            otp: "29"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: litewave_phoenix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      MIX_ENV: test
+      LITEWAVE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/litewave_phoenix_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - run: mix deps.get
+        working-directory: packages/phoenix
+      - run: mix precommit
+        working-directory: packages/phoenix
+      - run: mix hex.audit
+        working-directory: packages/phoenix
+      - run: mix docs --warnings-as-errors
+        working-directory: packages/phoenix
+        env:
+          MIX_ENV: dev
+      - run: mix hex.build
+        working-directory: packages/phoenix
+        env:
+          MIX_ENV: dev
+
+  publish:
+    name: Publish to npm and Hex
+    needs: [check, node, phoenix]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: release
+      url: https://www.npmjs.com/package/litewave
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20.4"
+      - run: npm ci
+      - run: npm run build
+      - name: Publish npm package with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: mix deps.get
+        working-directory: packages/phoenix
+      - name: Publish Hex package and docs
+        run: mix hex.publish --yes
+        working-directory: packages/phoenix
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - name: Create the GitHub release from the changelog
+        run: |
+          bash scripts/release-check.sh "$GITHUB_REF_NAME" --notes release-notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Litewave $GITHUB_REF_NAME" --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
