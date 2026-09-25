@@ -146,13 +146,14 @@ test("init without --app and without a runtime names the flag", async () => {
   }
 });
 
-test("a nonexistent --project is an invalid_request for init and status", async () => {
+test("a nonexistent --project is an invalid_request for init, with or without --app, and status", async () => {
   const root = await mkdtemp("/tmp/lw-n-");
   const env = { ...process.env, LITEWAVE_HOME: path.join(root, "s") };
   const missing = "/nonexistent/litewave/project";
   try {
     for (const args of [
       ["init", "--app", "http://localhost:4000"],
+      ["init"],
       ["status"],
     ]) {
       await assert.rejects(

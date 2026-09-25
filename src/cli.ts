@@ -77,6 +77,10 @@ async function main() {
     let app = values.app;
     if (!app) {
       const health = await callPhoenix(project, "phoenix_health");
+      // A missing project is the user's mistake; a stopped runtime only
+      // means the URL must be given, which the check below reports.
+      if (health.error?.code === "invalid_request")
+        throw new AccessError("invalid_request", health.error.message);
       if (typeof health.app_url === "string") app = health.app_url;
     }
     if (!app)
