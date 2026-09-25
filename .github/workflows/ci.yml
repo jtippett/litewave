@@ -40,7 +40,7 @@ jobs:
           - elixir: "1.20.4"
             otp: "29"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17
@@ -86,3 +86,23 @@ jobs:
         working-directory: packages/phoenix
       - run: mix precommit
         working-directory: packages/phoenix
+      - run: mix hex.audit
+        working-directory: packages/phoenix
+      - run: mix docs --warnings-as-errors
+        working-directory: packages/phoenix
+        env:
+          MIX_ENV: dev
+      - run: mix hex.build
+        working-directory: packages/phoenix
+        env:
+          MIX_ENV: dev
+      - name: Hex tarball ships the notices and changelog
+        working-directory: packages/phoenix
+        env:
+          MIX_ENV: dev
+        run: |
+          mix hex.build --unpack -o hex-build
+          for f in CHANGELOG.md LICENSE LICENSE-APACHE NOTICE README.md mix.exs .formatter.exs; do
+            [ -e "hex-build/$f" ] || { echo "missing $f in Hex tarball"; exit 1; }
+          done
+          rm -rf hex-build

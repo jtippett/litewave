@@ -10,6 +10,8 @@ dist/
 /packages/phoenix/*.ez
 /packages/phoenix/priv/plts/
 /packages/phoenix/doc/
+/packages/phoenix/hex-build/
+/packages/phoenix/*.tar
 
 # Private customer feedback and raw investigation evidence
 /local-feedback/
