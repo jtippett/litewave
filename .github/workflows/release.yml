@@ -121,17 +121,36 @@ jobs:
           elixir-version: "1.20.4"
       - run: npm ci
       - run: npm run build
-      - name: Publish npm package with provenance
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: mix deps.get
         working-directory: packages/phoenix
-      - name: Publish Hex package and docs
-        run: mix hex.publish --yes
+      - name: Dry-run both publishes before either registry is touched
+        run: |
+          npm publish --dry-run --provenance --access public
+          (cd packages/phoenix && mix hex.publish --dry-run --yes)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - name: Publish Hex package and docs (first, because Hex can be reverted)
         working-directory: packages/phoenix
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if mix hex.info litewave_phoenix "$version" >/dev/null 2>&1; then
+            echo "litewave_phoenix $version is already on Hex; skipping"
+          else
+            mix hex.publish --yes
+          fi
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - name: Publish npm package with provenance
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [ "$(npm view "litewave@$version" version 2>/dev/null)" = "$version" ]; then
+            echo "litewave $version is already on npm; skipping"
+          else
+            npm publish --provenance --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create the GitHub release from the changelog
         run: |
           bash scripts/release-check.sh "$GITHUB_REF_NAME" --notes release-notes.md

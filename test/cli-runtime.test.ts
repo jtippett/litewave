@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { access, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+} from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -19,6 +26,11 @@ import { playwrightCli } from "../src/supervisor.js";
 
 const run = promisify(execFile);
 const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
+const packageJsonVersion = (
+  JSON.parse(
+    await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ) as { version: string }
+).version;
 
 test("runtime tools work without a browser registration; init defaults --app from the runtime", async () => {
   const root = await mkdtemp("/tmp/lw-c-");
@@ -71,6 +83,11 @@ test("runtime tools work without a browser registration; init defaults --app fro
     });
     await client.connect(transport);
     try {
+      assert.equal(
+        client.getServerVersion()?.version,
+        packageJsonVersion,
+        "the MCP server reports the package version",
+      );
       const listed = await client.listTools();
       assert.ok(listed.tools.some((t) => t.name === "phoenix_health"));
       assert.ok(listed.tools.some((t) => t.name === "browser"));

@@ -9,7 +9,11 @@ tag="${1:-}"
 notes=""
 if [ "${2:-}" = "--notes" ]; then notes="${3:-}"; fi
 
-if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+  echo "release-check: tag '$tag' is a prerelease; the workflow publishes only stable versions (npm 'latest', Hex, GitHub release) for now" >&2
+  exit 1
+fi
+if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "release-check: tag '$tag' must look like v1.2.3" >&2
   exit 1
 fi
