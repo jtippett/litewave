@@ -17,7 +17,7 @@ defmodule Litewave.Config do
   | `:max_output_bytes`| `64_000`                                 | Bound on captured output, `1_024..256_000`.                                              |
   | `:max_rows`        | `50`                                     | SQL rows returned, at most `500`.                                                        |
   | `:project`         | the Mix project directory                | Canonical project path. Socket transport: application environment or default.           |
-  | `:environment`     | the host `Mix.env()`                     | Must be `:dev` or `:test`. Plug argument only.                                           |
+  | `:environment`     | the host `Mix.env()`                     | Must be `:dev` or `:test`. Plug argument, or application environment for the socket transport; defaults to the host `Mix.env()`. |
   | `:project_id`      | `Litewave.Paths.key(project)`            | Plug argument only; the default is what the CLI expects.                                 |
   | `:endpoint`        | required for the Plug                    | Loopback origin the Plug is served on, e.g. `"http://localhost:4000"`.                   |
   | `:token_file`      | required for the Plug                    | Private file created by `litewave phoenix setup`.                                        |
