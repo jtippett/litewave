@@ -5,10 +5,11 @@ Runtime dependencies:
 - Model Context Protocol TypeScript SDK: MIT.
 - Zod: MIT.
 
-The npm lockfile records the full dependency tree. See docs/dependency-licenses.md
-for the installed package license inventory. Preserve the license and notice
-files supplied by dependencies when redistributing their code. Chromium is
-installed separately and carries its own third-party licenses.
+The npm lockfile records the full dependency tree. The repository's
+docs/dependency-licenses.md lists the installed package license inventory.
+Preserve the license and notice files supplied by dependencies when
+redistributing their code. Chromium is installed separately and carries its
+own third-party licenses.
 
 Upstream references:
 - microsoft/playwright-mcp (Apache-2.0)

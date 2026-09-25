@@ -1,12 +1,30 @@
 {
   "name": "litewave",
   "version": "0.1.0-alpha.1",
-  "private": true,
-  "description": "Local browser access for agents, with durable sessions and honest action outcomes.",
+  "description": "Local browser access and Phoenix runtime tools for coding agents: a persistent Chromium driven through a CLI or MCP server, with honest action outcomes.",
+  "keywords": [
+    "mcp",
+    "playwright",
+    "browser",
+    "agent",
+    "coding-agent",
+    "phoenix",
+    "elixir",
+    "cli"
+  ],
+  "homepage": "https://github.com/jtippett/litewave#readme",
+  "bugs": {
+    "url": "https://github.com/jtippett/litewave/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jtippett/litewave.git"
+  },
+  "author": "James Tippett",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=24.21.0 <25"
+    "node": ">=24.21.0"
   },
   "bin": {
     "litewave": "dist/src/cli.js"
@@ -20,11 +38,10 @@
   "files": [
     "dist/src",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "NOTICE",
-    "docs/architecture.md",
-    "docs/status.md",
-    "docs/dependency-licenses.md"
+    "docs/architecture.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -35,7 +52,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "browser:install": "playwright install chromium",
-    "test:phoenix": "npm run build && cd packages/phoenix && mix precommit"
+    "test:phoenix": "npm run build && cd packages/phoenix && mix precommit",
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
