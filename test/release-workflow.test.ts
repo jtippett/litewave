@@ -35,3 +35,29 @@ test("npm authenticates with trusted publishing (OIDC), never a stored token", (
   // npm refuses to start when a referenced env var is unset.
   assert.doesNotMatch(workflow, /registry-url:/);
 });
+
+test("a re-run after a partial publish skips the dry-runs as well as the publishes", () => {
+  // One step records what each registry already has; every publish-shaped
+  // step, dry-run included, is conditioned on it. npm's dry-run fails on an
+  // existing version, which is how the first 0.1.0 re-run died.
+  assert.match(workflow, /id: published/);
+  const npmGuard =
+    workflow.match(/if: steps\.published\.outputs\.npm != 'true'/g) ?? [];
+  const hexGuard =
+    workflow.match(/if: steps\.published\.outputs\.hex != 'true'/g) ?? [];
+  assert.equal(npmGuard.length, 2, "npm dry-run and publish are both guarded");
+  assert.equal(hexGuard.length, 2, "Hex dry-run and publish are both guarded");
+  assert.match(
+    workflow,
+    /if: steps\.published\.outputs\.npm != 'true'\n(?:\s+\S.*\n)*?\s+run: npm publish --dry-run/,
+  );
+  assert.match(
+    workflow,
+    /if: steps\.published\.outputs\.hex != 'true'\n(?:\s+\S.*\n)*?\s+run: mix hex\.publish --dry-run --yes/,
+  );
+  assert.match(
+    workflow,
+    /gh release view "\$GITHUB_REF_NAME"/,
+    "GitHub release step skips an existing release",
+  );
+});
