@@ -6,7 +6,7 @@ Phoenix package has [its own changelog](packages/phoenix/CHANGELOG.md).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-25
+## [0.1.0] - 2026-09-27
 
 Initial public release.
 
