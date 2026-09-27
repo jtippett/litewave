@@ -32,6 +32,7 @@ Notes:
 
 - `LITEWAVE_HOME`, if you set it, must be the same absolute path for the app and every Litewave client of the project. Keep it short (socket paths are limited to about 100 bytes on macOS) and do not point it at a symlink.
 - If you include the dependency in `:test` as well (`only: [:dev, :test]`), add `config :litewave_phoenix, enabled: false` to `config/test.exs` so test runs publish nothing.
+- One runtime per project directory: the socket is keyed by the canonical directory of the running Mix project, so a dev server started inside a git worktree publishes for that worktree and serves that worktree's code. Run one server per worktree, each on its own port, and point the client at the same directory (`litewave mcp` uses the current directory when `--project` is omitted). Runtimes for different directories never share state.
 - The socket is not retried after a failure. If `litewave phoenix status` reports no runtime, run `Litewave.Listener.info()` in IEx: it reports `:disabled` with the reason, and the app keeps running regardless.
 
 ### Alternative: HTTP on the app port

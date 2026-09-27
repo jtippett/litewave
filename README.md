@@ -85,6 +85,22 @@ litewave phoenix call --project /absolute/path/to/app --tool get_docs --json '{"
 litewave mcp --project /absolute/path/to/app
 ```
 
+## One runtime per project directory
+
+A project is a directory. Its identity is the canonical path, and every piece of state derives from it: the runtime socket, the descriptor, the browser registration, and the Chromium profile. Two directories are two projects, even when they are worktrees of one repository, and that is deliberate.
+
+- **The app publishes for the directory it runs in.** A dev server started inside a worktree publishes a socket for that worktree, and the BEAM answering on it is that server, so `project_eval`, `get_docs`, `get_source_location`, `get_logs`, and SQL run against the worktree's own code, modules, and repo configuration. Several dev servers, one per worktree on its own port, run side by side without touching each other.
+- **Clients pick the project from `--project`, or from the current directory when it is omitted.** For one checkout, the `mcpServers` entry printed by `init` (with `--project` fixed) is fine. For a repository worked on in several worktrees at once, commit a `.mcp.json` without `--project`, so each editor session started in a worktree talks to that worktree's runtime with no per-worktree configuration:
+
+  ```json
+  { "mcpServers": { "litewave": { "command": "litewave", "args": ["mcp"] } } }
+  ```
+
+  MCP clients such as Claude Code start stdio servers in the project directory, which is what `litewave mcp` resolves.
+
+- **Browser access is per project too.** Each worktree that wants browser tools runs its own `litewave init` with its own app URL and gets its own profile and logins. Runtime tools need none of that.
+- **Nothing is shared but the code.** The `litewave` command and the Node runtime are stateless; all state is under `LITEWAVE_HOME`, keyed by project. Deleting a worktree leaves its `projects/<key>/` entry behind; `litewave stop --project PATH` before removing it closes the browser cleanly, and the runtime socket disappears when the dev server stops.
+
 ## Guides
 
 - [Phoenix package](packages/phoenix/README.md): install, options, tool behaviour, the HTTP Plug alternative.
@@ -140,7 +156,7 @@ litewave stop --project /absolute/path/to/app
 
 `doctor` probes the app over HTTP, the browser worker, and the Phoenix runtime separately. `stop` closes the owned browser and worker and refuses while an action or download is active. Closing an MCP client only detaches it.
 
-State lives in `~/.litewave` with owner-only permissions. `LITEWAVE_HOME` relocates it: use a short absolute path (socket paths are limited to about 100 bytes on macOS), not a symlink, and set the **same value for the app and every CLI/MCP client** of a project; the MCP entry printed by `init` includes it. Project identity is the canonical project directory, so each worktree gets its own registration, profile, and runtime socket.
+State lives in `~/.litewave` with owner-only permissions. `LITEWAVE_HOME` relocates it: use a short absolute path (socket paths are limited to about 100 bytes on macOS), not a symlink, and set the **same value for the app and every CLI/MCP client** of a project; the MCP entry printed by `init` includes it. Project identity is the canonical project directory; see [One runtime per project directory](#one-runtime-per-project-directory).
 
 Litewave never kills an unknown browser or deletes a profile lock. After a verified close it may let Chromium reacquire its own leftover lock only when the recorded owner is absent and the profile evidence matches. Worker death currently loses volatile tab state; saved downloads remain on disk.
 
