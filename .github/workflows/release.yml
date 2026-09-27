@@ -114,7 +114,6 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          registry-url: https://registry.npmjs.org
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29"
@@ -123,12 +122,21 @@ jobs:
       - run: npm run build
       - run: mix deps.get
         working-directory: packages/phoenix
+      # npm authenticates with GitHub's OIDC token (permissions.id-token above):
+      # the package's npm settings trust this repository's release.yml running
+      # in the `release` environment. No npm token is stored anywhere.
+      - name: npm supports trusted publishing
+        run: |
+          have="$(npm --version)"
+          if [ "$(printf '%s\n' 11.5.1 "$have" | sort -V | head -1)" != 11.5.1 ]; then
+            echo "npm $have is older than 11.5.1, which trusted publishing needs" >&2
+            exit 1
+          fi
       - name: Dry-run both publishes before either registry is touched
         run: |
           npm publish --dry-run --provenance --access public
           (cd packages/phoenix && mix hex.publish --dry-run --yes)
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
       - name: Publish Hex package and docs (first, because Hex can be reverted)
         working-directory: packages/phoenix
@@ -149,8 +157,6 @@ jobs:
           else
             npm publish --provenance --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create the GitHub release from the changelog
         run: |
           bash scripts/release-check.sh "$GITHUB_REF_NAME" --notes release-notes.md

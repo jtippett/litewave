@@ -27,3 +27,11 @@ test("both registries are dry-run first and skipped when the version already exi
   assert.match(workflow, /mix hex\.info litewave_phoenix "\$version"/);
   assert.match(workflow, /npm view "litewave@\$version" version/);
 });
+
+test("npm authenticates with trusted publishing (OIDC), never a stored token", () => {
+  assert.match(workflow, /id-token: write/);
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN|NPM_TOKEN/);
+  // setup-node's registry-url writes an .npmrc that reads NODE_AUTH_TOKEN, and
+  // npm refuses to start when a referenced env var is unset.
+  assert.doesNotMatch(workflow, /registry-url:/);
+});
