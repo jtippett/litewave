@@ -8,6 +8,14 @@ updates:
     versioning-strategy: increase
     open-pull-requests-limit: 5
     labels: [dependencies, npm]
+    ignore:
+      # Litewave qualifies one Playwright driver version (src/profile.ts checks
+      # the installed driver against the pin); upgrading it is a maintainer
+      # task with a browser re-qualification, not a Dependabot bump.
+      - dependency-name: playwright
+      # Types follow the supported Node major (engines.node), not the newest.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: mix
     directory: /packages/phoenix
     schedule:
