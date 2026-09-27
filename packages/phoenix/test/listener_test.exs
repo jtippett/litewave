@@ -145,7 +145,7 @@ defmodule Litewave.ListenerTest do
       capture_log(fn ->
         pid = start(ctx)
         assert %{status: :disabled, reason: reason} = Listener.info(pid)
-        assert reason =~ "cannot probe existing socket"
+        assert reason =~ "is not a socket"
       end)
 
     assert log =~ "Litewave runtime socket is unavailable"

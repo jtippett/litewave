@@ -181,9 +181,27 @@ defmodule Litewave.Listener do
 
   # A socket that accepts a connection has a live owner: report, never replace.
   # Only a socket that actively refuses connections is provably dead; every
-  # other probe outcome (permission errors, timeouts, a non-socket file, ...)
-  # is left alone and reported instead of guessed at.
+  # other probe outcome (permission errors, timeouts, ...) is left alone and
+  # reported instead of guessed at. The probe only runs against a path that
+  # is a socket: connecting to a regular file fails with :enotsock on macOS
+  # but :econnrefused on Linux, which would otherwise read as "stale".
   defp clear_stale(socket) do
+    case File.lstat(socket) do
+      {:error, :enoent} ->
+        :ok
+
+      {:ok, %File.Stat{type: :other}} ->
+        probe_socket(socket)
+
+      {:ok, %File.Stat{type: type}} ->
+        {:error, "existing path #{socket} is not a socket (#{type})"}
+
+      {:error, reason} ->
+        {:error, "cannot probe existing socket #{socket}: #{inspect(reason)}"}
+    end
+  end
+
+  defp probe_socket(socket) do
     case :gen_tcp.connect({:local, socket}, 0, [:local, active: false], 1_000) do
       {:ok, port} ->
         :gen_tcp.close(port)
