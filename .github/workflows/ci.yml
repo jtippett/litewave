@@ -70,14 +70,14 @@ jobs:
         with:
           otp-version: ${{ matrix.otp }}
           elixir-version: ${{ matrix.elixir }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             packages/phoenix/deps
             packages/phoenix/_build
           key: mix-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('packages/phoenix/mix.lock') }}
           restore-keys: mix-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: packages/phoenix/priv/plts
           key: plt-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('packages/phoenix/mix.lock') }}
